@@ -1,0 +1,41 @@
+/* Bilingual UI strings + stage definitions */
+window.TM_STAGES = [
+  { id: 0, key: 'locked',    en: 'Locked',           ar: 'مغلق',           chip: 'Locked',    chipAr: 'مغلق',   color: '#5b6b82', glow: 'rgba(91,107,130,.35)' },
+  { id: 1, key: 'contact',   en: 'Contact',          ar: 'تواصل',          chip: 'Contact',   chipAr: 'تواصل',  color: '#38bdf8', glow: 'rgba(56,189,248,.85)' },
+  { id: 2, key: 'visited',   en: 'Visited',          ar: 'تمت الزيارة',     chip: 'Visited',   chipAr: 'زيارة',  color: '#fbbf24', glow: 'rgba(251,191,36,.85)' },
+  { id: 3, key: 'partial',   en: 'Partial adoption', ar: 'تبنٍ جزئي',       chip: 'Partial',   chipAr: 'جزئي',   color: '#86efac', glow: 'rgba(134,239,172,.9)' },
+  { id: 4, key: 'activated', en: 'Fully activated',  ar: 'مُفعّل بالكامل',   chip: 'Activated', chipAr: 'مُفعّل', color: '#22ff88', glow: 'rgba(34,255,136,1)' }
+];
+
+window.TM_I18N = {
+  en: {
+    dir: 'ltr', lang: 'en',
+    gateSub: 'Restricted field tool · enter access code',
+    gateBtn: 'DEPLOY', gateErr: 'Incorrect code',
+    clusters: 'Clusters', hospitals: 'hospitals', conquered: 'conquered',
+    searchPh: 'Search hospital, city, manager…', noResults: 'No matches',
+    city: 'City', cluster: 'Cluster', stage: 'Stage', manager: 'CSSD Manager',
+    phone: 'Phone', lastVisit: 'Last visit', products: 'Products adopted',
+    agent: 'Assigned agent', nextStep: 'Next step', nextVisit: 'Next visit due',
+    notes: 'Notes', remote: 'Remote site', none: '—', call: 'Call', directions: 'Directions',
+    copy: 'Copy', copied: 'Copied', activated: 'activated', contacted: 'contacted',
+    locked: 'locked', live: 'Live data', snapshot: 'Snapshot', updated: 'Updated',
+    allStages: 'All', of: 'of', progress: 'Progress', fullyActivated: 'FULLY ACTIVATED',
+    tapHint: 'Tap a marker for mission details', missions: 'missions'
+  },
+  ar: {
+    dir: 'rtl', lang: 'ar',
+    gateSub: 'أداة ميدانية مقيّدة · أدخل رمز الدخول',
+    gateBtn: 'دخول', gateErr: 'رمز غير صحيح',
+    clusters: 'التجمعات', hospitals: 'مستشفى', conquered: 'مُسيطر عليه',
+    searchPh: 'ابحث عن مستشفى أو مدينة أو مسؤول…', noResults: 'لا توجد نتائج',
+    city: 'المدينة', cluster: 'التجمع', stage: 'المرحلة', manager: 'مسؤول التعقيم',
+    phone: 'الجوال', lastVisit: 'آخر زيارة', products: 'المنتجات المعتمدة',
+    agent: 'المندوب', nextStep: 'الخطوة التالية', nextVisit: 'الزيارة القادمة',
+    notes: 'ملاحظات', remote: 'موقع نائي', none: '—', call: 'اتصال', directions: 'الاتجاهات',
+    copy: 'نسخ', copied: 'تم النسخ', activated: 'مُفعّل', contacted: 'تم التواصل',
+    locked: 'مغلق', live: 'بيانات مباشرة', snapshot: 'نسخة محفوظة', updated: 'آخر تحديث',
+    allStages: 'الكل', of: 'من', progress: 'التقدم', fullyActivated: 'مُفعّل بالكامل',
+    tapHint: 'اضغط على أي علامة لعرض التفاصيل', missions: 'مهمة'
+  }
+};
