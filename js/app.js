@@ -595,7 +595,7 @@ function boot() {
       state.stamp = d.stamp;
       state.geo = res[1];
       refresh();
-      frameTerritory();
+      if (!applyDeepLink()) frameTerritory();
       installPreviewToggle();
       if (d.error) console.info('[TM] snapshot in use because: ' + d.error);
     })
@@ -605,7 +605,34 @@ function boot() {
     });
 }
 
+/* Deep links, so a rep can send a colleague straight to a hospital:
+     ?h=<hospital id>          open that hospital's panel
+     ?at=<lat>,<lng>,<zoom>    open at a specific view
+   Returns true when a link set the view.                                  */
+function applyDeepLink() {
+  var q = new URLSearchParams(location.search), handled = false;
+  var at = q.get('at');
+  if (at) {
+    var p = at.split(',').map(parseFloat);
+    if (p.length >= 2 && isFinite(p[0]) && isFinite(p[1])) {
+      state.map.setView([p[0], p[1]], isFinite(p[2]) ? p[2] : 9, { animate: false });
+      handled = true;
+    }
+  }
+  var id = q.get('h');
+  if (id) {
+    var m = state.missions.filter(function (x) { return x.id === id; })[0];
+    if (m) {
+      if (!handled) state.map.setView([m.dlat, m.dlng], 10, { animate: false });
+      selectMission(m);
+      handled = true;
+    }
+  }
+  return handled;
+}
+
 /* exposed for tests + support debugging in the field */
+state.deepLink = applyDeepLink;
 state.parseCSV = parseCSV;
 state.normalizeRows = normalizeRows;
 state.reload = function () { return loadData().then(function (d) {

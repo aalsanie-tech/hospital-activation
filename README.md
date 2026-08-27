@@ -142,6 +142,18 @@ tools/                snapshot builder + passcode setter
 * Riyadh, Eastern Province and Qassim carry no missions and render as
   out-of-territory.
 
+## Deep links
+
+Share a specific view or hospital:
+
+```
+…/index.html?h=h042                    open that hospital's panel
+…/index.html?at=21.5433,39.1728,9      open at a lat,lng,zoom
+```
+
+Hospital ids are row order in the sheet (`h001` … `h197`), so they shift if
+rows are reordered. For a durable link, prefer `?at=`.
+
 ## Debugging in the field
 
 `window.TM` exposes live state — `TM.missions`, `TM.map`, `TM.source`,
