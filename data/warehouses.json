@@ -1,0 +1,67 @@
+{
+ "warehouses": [
+  {
+   "name": "Nupco Jeddah (Maersk)",
+   "city": "جدة",
+   "serves": "جدة 1, جدة 2, مكة, الطائف",
+   "lat": 21.45,
+   "lng": 39.13,
+   "contact": "",
+   "phone": ""
+  },
+  {
+   "name": "Nupco Sakaka",
+   "city": "سكاكا",
+   "serves": "تبوك, الجوف, الحدود الشمالية",
+   "lat": 29.9697,
+   "lng": 40.2064,
+   "contact": "",
+   "phone": ""
+  },
+  {
+   "name": "Nupco Qassim",
+   "city": "القصيم",
+   "serves": "حائل",
+   "lat": 26.326,
+   "lng": 43.975,
+   "contact": "",
+   "phone": ""
+  },
+  {
+   "name": "Nupco Baha",
+   "city": "الباحة",
+   "serves": "الباحة",
+   "lat": 20.0129,
+   "lng": 41.4677,
+   "contact": "",
+   "phone": ""
+  },
+  {
+   "name": "Nupco Jazan",
+   "city": "جازان",
+   "serves": "جازان",
+   "lat": 16.8892,
+   "lng": 42.5611,
+   "contact": "",
+   "phone": ""
+  },
+  {
+   "name": "Nupco Aseer",
+   "city": "عسير",
+   "serves": "عسير, نجران",
+   "lat": 18.2164,
+   "lng": 42.5053,
+   "contact": "",
+   "phone": ""
+  },
+  {
+   "name": "Nupco Madinah",
+   "city": "المدينة",
+   "serves": "المدينة",
+   "lat": 24.4672,
+   "lng": 39.6112,
+   "contact": "",
+   "phone": ""
+  }
+ ]
+}

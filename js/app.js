@@ -79,7 +79,8 @@ function resolveCluster(raw) {
 var state = window.TM = {
   missions: [], source: 'snapshot', stamp: '', lang: 'en',
   stageFilter: null, clusterFilter: null, preview: false,
-  markers: {}, map: null, fog: null, regionLayer: null, selected: null
+  markers: {}, map: null, fog: null, regionLayer: null, selected: null,
+  products: [], warehouses: [], supplyLayers: [], showSupply: true
 };
 
 /* ════════════════════════════════════════ CSV ═══ */
@@ -260,6 +261,7 @@ function initMap() {
   map.createPane('regions').style.zIndex = 300;      // terrain
   map.createPane('lockedPins').style.zIndex = 420;   // under the fog
   map.createPane('fogPane').style.zIndex = 450;
+  map.createPane('supply').style.zIndex = 470;
   map.getPane('fogPane').style.pointerEvents = 'none';
   map.getPane('regions').style.pointerEvents = 'auto';
   L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -621,12 +623,17 @@ function refresh() {
   renderDrawer(st);
   renderRegions(state.geo, st);
   renderPins();
+  renderSupply(st);
   updateFog(st);
 }
 
 /* ════════════════════════════════════ boot ═══ */
 function boot() {
   try { state.lang = localStorage.getItem('tm_lang') || 'en'; } catch (e) {}
+  try {
+    var pref = localStorage.getItem('tm_supply');
+    state.showSupply = pref === null ? (CFG.SHOW_SUPPLY_DEFAULT !== false) : pref === '1';
+  } catch (e) { state.showSupply = CFG.SHOW_SUPPLY_DEFAULT !== false; }
   applyLang();
   initMap();
 
@@ -641,6 +648,7 @@ function boot() {
     state.lang = state.lang === 'en' ? 'ar' : 'en';
     applyLang();
     refresh();
+    if (state.supplyLabel) state.supplyLabel();
     if (state.selected) {
       var m = state.missions.filter(function (x) { return x.id === state.selected; })[0];
       if (m) selectMission(m);
@@ -661,6 +669,7 @@ function boot() {
   });
 
   loadProducts();
+  var whReady = loadWarehouses();
   Promise.all([loadData(), fetch(CFG.REGIONS_URL).then(function (r) { return r.json(); })])
     .then(function (res) {
       var d = res[0];
@@ -671,6 +680,10 @@ function boot() {
       refresh();
       if (!applyDeepLink()) frameTerritory();
       installPreviewToggle();
+      whReady.then(function () {
+        installSupplyToggle();
+        renderSupply(stats(state.missions));
+      });
       if (d.error) console.info('[TM] snapshot in use because: ' + d.error);
     })
     .catch(function (e) {
@@ -1054,6 +1067,153 @@ function toast(msg) {
   el.hidden = false;
   clearTimeout(el._t);
   el._t = setTimeout(function () { el.hidden = true; }, 3200);
+}
+
+
+/* ═══════════════════════════════════ supply network ═══ */
+/* Nupco depots and the clusters they feed. Drawn above the fog — supply
+   lines are logistics you already know about, not territory to discover. */
+function loadWarehouses() {
+  var url = (CFG.APPS_SCRIPT_URL || '').trim();
+  var live = url
+    ? fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') + 'action=warehouses',
+                       CFG.CSV_TIMEOUT_MS || 8000)
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (j) {
+          if (!j || j.success !== true || !j.warehouses || !j.warehouses.length) {
+            throw new Error((j && j.error) || 'no warehouses returned');
+          }
+          return j.warehouses;
+        })
+    : Promise.reject(new Error('no endpoint'));
+
+  return live.catch(function (e) {
+    console.warn('[TM] warehouses from the web app failed (' + e.message + '), using the bundled copy');
+    return fetch(CFG.WAREHOUSES_FALLBACK_URL).then(function (r) { return r.json(); })
+      .then(function (j) { return j.warehouses || []; });
+  }).then(function (list) {
+    state.warehouses = list.map(function (w) {
+      var lat = num(w.lat), lng = num(w.lng);
+      return {
+        name: String(w.name || ''), city: String(w.city || ''),
+        contact: String(w.contact || ''), phone: String(w.phone || ''),
+        lat: lat, lng: lng,
+        /* "جدة 1, جدة 2, مكة" → the same cluster defs the map already uses */
+        serves: String(w.serves || '').split(',').map(function (x) { return x.trim(); })
+          .filter(Boolean).map(function (raw) {
+            var def = resolveCluster(raw);
+            return { raw: raw, def: def, short: def ? def.short : raw };
+          })
+      };
+    }).filter(function (w) { return isFinite(w.lat) && isFinite(w.lng); });
+    return state.warehouses;
+  }).catch(function (e) {
+    console.warn('[TM] warehouses unavailable:', e.message);
+    state.warehouses = [];
+    return [];
+  });
+}
+
+function warehouseIcon() {
+  return L.divIcon({
+    className: 'wh-wrap',
+    html: '<div class="wh"><span class="wh-glyph">▣</span></div>',
+    iconSize: [21, 21], iconAnchor: [10, 10]
+  });
+}
+
+function renderSupply(st) {
+  var map = state.map;
+  (state.supplyLayers || []).forEach(function (l) { map.removeLayer(l); });
+  state.supplyLayers = [];
+  if (!state.showSupply || !(state.warehouses || []).length) return;
+
+  /* where each cluster actually sits, by its short name */
+  var centres = {};
+  Object.keys(st.clusters).forEach(function (k) {
+    var c = st.clusters[k];
+    centres[c.short] = c;
+  });
+
+  state.warehouses.forEach(function (w) {
+    w.serves.forEach(function (sv) {
+      var c = centres[sv.short];
+      if (!c) return;
+      var line = L.polyline([[w.lat, w.lng], [c.lat, c.lng]], {
+        pane: 'supply',
+        className: 'supply-line' + (c.pct >= 0.999 ? ' supply-full' : ''),
+        color: c.pct >= 0.999 ? '#3dffa0' : '#6cb8f0',
+        weight: 2,
+        opacity: 0.8,
+        dashArray: '6 8',
+        interactive: false
+      }).addTo(map);
+      state.supplyLayers.push(line);
+    });
+
+    var mk = L.marker([w.lat, w.lng], {
+      icon: warehouseIcon(), title: w.name, zIndexOffset: 500, riseOnHover: true
+    }).addTo(map);
+    mk.on('click', function () { selectWarehouse(w, st); });
+    state.supplyLayers.push(mk);
+  });
+}
+
+function selectWarehouse(w, st) {
+  st = st || stats(state.missions);
+  var centres = {};
+  Object.keys(st.clusters).forEach(function (k) { centres[st.clusters[k].short] = st.clusters[k]; });
+
+  var rows = w.serves.map(function (sv) {
+    var c = centres[sv.short];
+    var km = c ? Math.round(state.map.distance([w.lat, w.lng], [c.lat, c.lng]) / 1000) : null;
+    return '<div class="row"><span class="row-k">' +
+      esc(state.lang === 'ar' ? sv.raw : sv.short) + '</span><span class="row-v">' +
+      (c ? c.total + ' ' + esc(t('hospitals')) + ' · ' + Math.round(c.pct * 100) + '%' +
+           (km != null ? ' · ' + km + ' km' : '')
+         : esc(t('none'))) + '</span></div>';
+  }).join('');
+
+  $('#panel-body').innerHTML =
+    '<div class="p-head wh-head">' +
+      '<span class="p-badge">' + esc(t('warehouse')) + '</span>' +
+      '<h2 class="p-name">' + esc(w.name) + '</h2>' +
+      '<p class="p-loc">' + esc(w.city) + ' · ' + w.serves.length + ' ' +
+        esc(state.lang === 'ar' ? t('clusters') : (w.serves.length === 1 ? 'cluster' : 'clusters')) + '</p>' +
+    '</div>' +
+    '<div class="p-rows"><div class="rows-head">' + esc(t('serves')) + '</div>' + rows +
+      (w.contact ? row(t('manager'), w.contact) : '') +
+      (w.phone ? row(t('phone'), w.phone) : '') +
+    '</div>' +
+    '<div class="p-actions">' +
+      (w.phone ? '<a class="act act-call" href="tel:' + esc(w.phone.replace(/\s/g, '')) + '">☎ ' + t('call') + '</a>' : '') +
+      '<a class="act" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
+        w.lat + ',' + w.lng + '">➤ ' + t('directions') + '</a>' +
+    '</div>';
+
+  $('#panel').classList.add('open');
+  $('#panel').setAttribute('aria-hidden', 'false');
+  $$('.pin-wrap.is-selected').forEach(function (e) { e.classList.remove('is-selected'); });
+}
+
+function installSupplyToggle() {
+  var drawer = $('#drawer'), btn = document.createElement('button');
+  btn.className = 'supply-toggle' + (state.showSupply ? ' on' : '');
+  btn.innerHTML = '<span>▣</span> <b></b>';
+  var label = function () {
+    btn.querySelector('b').textContent =
+      t('supply') + ' · ' + (state.warehouses || []).length + ' ' + t('depots');
+  };
+  label();
+  btn.addEventListener('click', function () {
+    state.showSupply = !state.showSupply;
+    btn.classList.toggle('on', state.showSupply);
+    try { localStorage.setItem('tm_supply', state.showSupply ? '1' : '0'); } catch (e) {}
+    renderSupply(stats(state.missions));
+  });
+  var list = $('#cluster-list');
+  drawer.insertBefore(btn, list);
+  state.supplyLabel = label;
 }
 
 

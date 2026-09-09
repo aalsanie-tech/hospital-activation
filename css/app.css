@@ -519,3 +519,41 @@ select.in{
   0%{transform:scale(.6);opacity:.95}
   100%{transform:scale(4.2);opacity:0}
 }
+
+/* ═══ SUPPLY NETWORK (Nupco depots) ══════════════════════════════ */
+.wh-wrap{background:none!important;border:0!important}
+.wh{
+  width:21px; height:21px; display:grid; place-items:center; border-radius:6px;
+  background:linear-gradient(160deg,#123048,#0a1a28);
+  border:1.5px solid #58a8e6; box-shadow:0 0 12px #58a8e666,0 2px 6px #0009;
+  transform:rotate(45deg);
+}
+.wh-glyph{
+  transform:rotate(-45deg); font-size:10px; line-height:1; color:#9ad4ff;
+  text-shadow:0 0 8px #58a8e6;
+}
+.wh-wrap:hover .wh{border-color:#9ad4ff;box-shadow:0 0 18px #58a8e6aa}
+
+.supply-line{
+  stroke-linecap:round;
+  animation:supplyFlow 2.6s linear infinite;
+}
+@keyframes supplyFlow{to{stroke-dashoffset:-24}}
+.supply-full{filter:drop-shadow(0 0 5px #22ff8899)}
+
+.supply-toggle{
+  display:flex; align-items:center; gap:8px; width:100%; cursor:pointer;
+  margin-bottom:12px; padding:10px 12px; border-radius:12px; text-align:start;
+  border:1px solid var(--line); background:#0a1420; color:var(--ink-mute); font-size:12.5px;
+}
+.supply-toggle span{color:#58a8e6;font-size:13px}
+.supply-toggle b{font-weight:600}
+.supply-toggle.on{border-color:#58a8e6;background:#0d1c2b;color:#cfe4ff}
+.rows-head{
+  font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-mute);
+  font-family:var(--font-hud); margin:4px 0 2px;
+}
+.wh-head{--g:rgba(88,168,230,.28)}
+.wh-head .p-badge{background:#58a8e61f;border-color:#58a8e655;color:#9ad4ff}
+
+@media (prefers-reduced-motion:reduce){ .supply-line{animation:none} }

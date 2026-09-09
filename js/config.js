@@ -49,6 +49,10 @@ window.TM_CONFIG = {
      falling back to the bundled data/products.json when it is unreachable. */
   PRODUCTS_FALLBACK_URL: 'data/products.json',
 
+  /* Nupco depots (?action=warehouses) and the clusters each one supplies */
+  WAREHOUSES_FALLBACK_URL: 'data/warehouses.json',
+  SHOW_SUPPLY_DEFAULT: true,
+
   ACTION_OPTIONS: ['None', 'Broken Device', 'Training Needed', 'Product Complaint', 'Urgent Follow-up'],
 
   /* ── Map ───────────────────────────────────────────────────────────────*/

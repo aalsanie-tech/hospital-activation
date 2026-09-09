@@ -35,7 +35,10 @@ window.TM_I18N = {
     actNone: 'None', actBroken: 'Broken Device', actTraining: 'Training Needed',
     actComplaint: 'Product Complaint', actUrgent: 'Urgent Follow-up',
     editOff: 'Edit mode is not configured yet', pickProducts: 'Select products',
-    stage2: 'Stage'
+    stage2: 'Stage',
+    supply: 'Supply network', warehouse: 'Nupco warehouse', serves: 'Supplies',
+    depots: 'depots', away: 'away', showSupply: 'Show supply network',
+    hideSupply: 'Hide supply network'
   },
   ar: {
     dir: 'rtl', lang: 'ar',
@@ -64,6 +67,9 @@ window.TM_I18N = {
     actNone: 'لا شيء', actBroken: 'جهاز معطل', actTraining: 'يحتاج تدريب',
     actComplaint: 'شكوى منتج', actUrgent: 'متابعة عاجلة',
     editOff: 'وضع التعديل غير مفعّل بعد', pickProducts: 'اختر المنتجات',
-    stage2: 'المرحلة'
+    stage2: 'المرحلة',
+    supply: 'شبكة الإمداد', warehouse: 'مستودع نبكو', serves: 'يغذّي',
+    depots: 'مستودعات', away: 'بعد', showSupply: 'عرض شبكة الإمداد',
+    hideSupply: 'إخفاء شبكة الإمداد'
   }
 };
