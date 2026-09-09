@@ -1,0 +1,134 @@
+{
+ "products": [
+  {
+   "name": "GUL Ultra Pouch",
+   "category": "Push",
+   "code": "GUL160/380/520/750"
+  },
+  {
+   "name": "KPCD224-C BI Challenge Pack",
+   "category": "Push",
+   "code": "KPCD224-C"
+  },
+  {
+   "name": "BT224 BI Steam",
+   "category": "Push",
+   "code": "BT224"
+  },
+  {
+   "name": "BT96 BI Steam",
+   "category": "Push",
+   "code": "BT96"
+  },
+  {
+   "name": "Transport Box Small",
+   "category": "Push",
+   "code": "BTB003"
+  },
+  {
+   "name": "Transport Box Medium",
+   "category": "Push",
+   "code": "RTB003"
+  },
+  {
+   "name": "Transport Box Large",
+   "category": "Push",
+   "code": "RTB004A"
+  },
+  {
+   "name": "J71D Rinse Aid",
+   "category": "Push",
+   "code": "J71D"
+  },
+  {
+   "name": "Tip Caps",
+   "category": "Push",
+   "code": "308100"
+  },
+  {
+   "name": "Locking Tags",
+   "category": "Push",
+   "code": "LT450"
+  },
+  {
+   "name": "Enzyme Solution 5L",
+   "category": "Push",
+   "code": "J92C"
+  },
+  {
+   "name": "J100E Enzymatic (Dosing)",
+   "category": "Selective",
+   "code": "J100E"
+  },
+  {
+   "name": "J77E Alkaline (Dosing)",
+   "category": "Selective",
+   "code": "J77E"
+  },
+  {
+   "name": "Chemical Indicator Type 6",
+   "category": "Inform",
+   "code": "IT27-4YS"
+  },
+  {
+   "name": "Chemical Indicator Plasma",
+   "category": "Inform",
+   "code": "CD40"
+  },
+  {
+   "name": "Steam Roll 50mm",
+   "category": "Inform",
+   "code": "RF50"
+  },
+  {
+   "name": "Steam Roll 200mm",
+   "category": "Inform",
+   "code": "RF200"
+  },
+  {
+   "name": "Steam Roll 250mm",
+   "category": "Inform",
+   "code": "RF250"
+  },
+  {
+   "name": "Steam Pouch 90x250",
+   "category": "Inform",
+   "code": "FP092"
+  },
+  {
+   "name": "Steam Pouch 120x250",
+   "category": "Inform",
+   "code": "FP122"
+  },
+  {
+   "name": "Steam Pouch 160x380",
+   "category": "Inform",
+   "code": "FP160"
+  },
+  {
+   "name": "Wrap Sheet 140x140",
+   "category": "Inform",
+   "code": "OS140140"
+  },
+  {
+   "name": "Plasma Roll 250mm",
+   "category": "Inform",
+   "code": "RP250"
+  },
+  {
+   "name": "Cleaning Brush Set",
+   "category": "Inform",
+   "code": "FBC series"
+  },
+  {
+   "name": "CD23 Labels",
+   "category": "Inform",
+   "code": "CD23"
+  },
+  {
+   "name": "Integrator IT26-C",
+   "category": "Inform",
+   "code": "IT26-C"
+  }
+ ]
+}

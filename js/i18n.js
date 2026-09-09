@@ -21,7 +21,20 @@ window.TM_I18N = {
     copy: 'Copy', copied: 'Copied', activated: 'activated', contacted: 'contacted',
     locked: 'locked', live: 'Live data', snapshot: 'Snapshot', updated: 'Updated',
     allStages: 'All', of: 'of', progress: 'Progress', fullyActivated: 'FULLY ACTIVATED',
-    tapHint: 'Tap a marker for mission details', missions: 'missions'
+    tapHint: 'Tap a marker for mission details', missions: 'missions',
+    update: 'Update', save: 'Save', cancel: 'Cancel', saving: 'Saving…',
+    saved: 'Saved to the sheet', saveFailed: 'Could not save',
+    retry: 'Retry', required: 'required', today: 'Today',
+    fManager: 'CSSD Manager Name', fPhone: 'Phone', fLastVisit: 'Last Visit Date',
+    fVisitLog: 'Visit Log', fPushAdopted: 'Push Adopted', fInformed: 'Informed',
+    fIncubator: 'Has Incubator', fSerial: 'Incubator Serial',
+    fDosing: 'Dosing System', fShortage: 'Shortage Items',
+    fAction: 'Action Required', fFeedback: 'Feedback — Missing Items',
+    fNextStep: 'Next Step', outOf: 'out of', selected: 'selected',
+    noChange: 'no change', yes: 'Y', no: 'N', cls: 'Class',
+    actNone: 'None', actBroken: 'Broken Device', actTraining: 'Training Needed',
+    actComplaint: 'Product Complaint', actUrgent: 'Urgent Follow-up',
+    editOff: 'Edit mode is not configured yet', pickProducts: 'Select products'
   },
   ar: {
     dir: 'rtl', lang: 'ar',
@@ -36,6 +49,19 @@ window.TM_I18N = {
     copy: 'نسخ', copied: 'تم النسخ', activated: 'مُفعّل', contacted: 'تم التواصل',
     locked: 'مغلق', live: 'بيانات مباشرة', snapshot: 'نسخة محفوظة', updated: 'آخر تحديث',
     allStages: 'الكل', of: 'من', progress: 'التقدم', fullyActivated: 'مُفعّل بالكامل',
-    tapHint: 'اضغط على أي علامة لعرض التفاصيل', missions: 'مهمة'
+    tapHint: 'اضغط على أي علامة لعرض التفاصيل', missions: 'مهمة',
+    update: 'تحديث', save: 'حفظ', cancel: 'إلغاء', saving: 'جارٍ الحفظ…',
+    saved: 'تم الحفظ في الملف', saveFailed: 'تعذّر الحفظ',
+    retry: 'إعادة المحاولة', required: 'مطلوب', today: 'اليوم',
+    fManager: 'اسم مسؤول التعقيم', fPhone: 'الجوال', fLastVisit: 'تاريخ آخر زيارة',
+    fVisitLog: 'سجل الزيارة', fPushAdopted: 'المنتجات المعتمدة', fInformed: 'تم إبلاغه',
+    fIncubator: 'يوجد حاضنة', fSerial: 'الرقم التسلسلي للحاضنة',
+    fDosing: 'نظام الجرعات', fShortage: 'الأصناف الناقصة',
+    fAction: 'الإجراء المطلوب', fFeedback: 'ملاحظات — أصناف ناقصة',
+    fNextStep: 'الخطوة التالية', outOf: 'من', selected: 'محدد',
+    noChange: 'دون تغيير', yes: 'نعم', no: 'لا', cls: 'التصنيف',
+    actNone: 'لا شيء', actBroken: 'جهاز معطل', actTraining: 'يحتاج تدريب',
+    actComplaint: 'شكوى منتج', actUrgent: 'متابعة عاجلة',
+    editOff: 'وضع التعديل غير مفعّل بعد', pickProducts: 'اختر المنتجات'
   }
 };

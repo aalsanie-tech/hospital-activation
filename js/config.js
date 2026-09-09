@@ -32,6 +32,25 @@ window.TM_CONFIG = {
   PASSCODE_SHA256: 'a675f3f1a7c1fd64404115b8dfdfa0595a553cfcd7a0422270ac34ca397ef53d',
   GATE_ENABLED: true,
 
+  /* ── Agent edit mode (writes back to the sheet) ────────────────────────
+     Paste the /exec URL you get from deploying tools/apps-script/Code.gs
+     (see README → "Turning on edit mode"). Until it is set, the Update
+     button stays hidden and the map is read-only.                        */
+  APPS_SCRIPT_URL: '',
+
+  /* Must match SHARED_TOKEN in Code.gs. It ships in this file, so it only
+     stops drive-by writes — it is not authentication. */
+  WRITE_TOKEN: 'change-me',
+
+  SAVE_TIMEOUT_MS: 20000,
+
+  /* Shortage Items choices — read live from the Product Reference tab,
+     falling back to data/products.json. */
+  PRODUCTS_CSV_URL: 'https://docs.google.com/spreadsheets/d/1HBRcW_MYKdNy-YOjAbpMvYtx7wthTbPTAPlhV4uCKE8/gviz/tq?tqx=out:csv&headers=1&sheet=Product%20Reference',
+  PRODUCTS_FALLBACK_URL: 'data/products.json',
+
+  ACTION_OPTIONS: ['None', 'Broken Device', 'Training Needed', 'Product Complaint', 'Urgent Follow-up'],
+
   /* ── Map ───────────────────────────────────────────────────────────────*/
   CENTER: [23.5, 42.6],
   ZOOM: 5,

@@ -38,6 +38,16 @@ in [`js/config.js`](js/config.js).
 Note that either step makes that tab readable by anyone holding the link,
 including the CSSD manager names and phone numbers.
 
+### Cluster names
+
+Clusters are matched by a normalised alias, not an exact string — the sheet
+has already been re-keyed once from `تجمع مكة المكرمة الصحي` to `مكة`, and
+that rename silently un-mapped every province until the aliases went in. Both
+spellings now resolve, along with the English names. Add a new spelling to
+`CLUSTER_DEFS` in `js/app.js` (and `tools/build_data.py`) if the sheet
+changes again. An unrecognised cluster logs a console warning and simply
+loses its province shading, rather than guessing.
+
 ### Expected CSV columns (in order)
 
 `Hospital Name, Cluster, City, Agent, Stage, CSSD Manager Name,
@@ -82,6 +92,84 @@ Treat the URL as semi-public and don't put anything in the sheet you couldn't
 live with leaking.
 
 ---
+
+## Turning on edit mode
+
+Agents can update a hospital from the map: open a hospital → **Update** →
+fill the form → **Save**. It writes straight back to the "Hospital
+Activation" tab. Until the endpoint below is configured the button stays
+hidden and the map is read-only.
+
+**1 — Add the script**
+
+Open the sheet → **Extensions → Apps Script** → replace the contents of
+`Code.gs` with [`tools/apps-script/Code.gs`](tools/apps-script/Code.gs).
+
+**2 — Set a shared token**
+
+In `Code.gs` change `SHARED_TOKEN` from `change-me` to something private,
+and put the identical string in `WRITE_TOKEN` in
+[`js/config.js`](js/config.js).
+
+**3 — Check access**
+
+Run the `setup` function once from the Apps Script editor. Approve the
+permission prompt. It reports the row count and adds any columns the form
+needs that the sheet does not have yet (`Informed`, `Dosing System`, …).
+
+**4 — Deploy**
+
+**Deploy → New deployment → Web app**
+* Execute as: **Me**
+* Who has access: **Anyone**
+
+Copy the `/exec` URL into `APPS_SCRIPT_URL` in `js/config.js`, then commit
+and push. Re-deploy (**Manage deployments → Edit → Version: New**) whenever
+you change `Code.gs`.
+
+**Check it from the browser console** on the live site:
+
+```js
+TM.postUpdate({ token: TM_CONFIG.WRITE_TOKEN, row: 2,
+                hospitalName: TM.missions[0].name,
+                updates: { 'Next Step': 'endpoint test' } })
+```
+
+`{ok: true, row: 2, updated: [...]}` means it is wired up.
+
+### What the form writes
+
+| Form field | Sheet column |
+|---|---|
+| CSSD Manager Name | `CSSD Manager Name` |
+| Phone | `CSSD Manager Phone` |
+| Last Visit Date (defaults to today) | `Last Visit Date` |
+| Visit Log | `Visit Log` — prepended as `[date] text`, older entries kept |
+| Push Adopted | `Products Adopted` (+ recomputes `Adoption %` when a target exists) |
+| Informed / Has Incubator / Dosing System | `Informed` / `Has Incubator` / `Dosing System` |
+| Incubator Serial (only when Has Incubator = Y) | `Incubator Serial` |
+| Shortage Items | `Shortage Items`, comma separated |
+| Action Required | `Action Required` |
+| Feedback — Missing Items | `Feedback - Missing Items` |
+| Next Step | `Next Step` |
+
+The Y/N toggles have three states; **—** means "leave the sheet alone", so
+an agent never overwrites a known value with a guess. Shortage Items is the
+exception: clearing every chip clears the cell.
+
+Rows are addressed by sheet row number, and the script re-checks the
+hospital name at that row before writing. If rows were sorted or inserted
+in the meantime it searches by name + cluster instead, and refuses rather
+than guesses when that is ambiguous.
+
+**Edit mode does not change Stage.** A visit logged from the field will not
+turn a pin from blue to amber — stage stays under your control in the sheet.
+
+**The write endpoint is public.** "Who has access: Anyone" is what lets
+phones post to it without a Google login; the token ships inside
+`js/config.js`, so it stops drive-by writes but is not authentication.
+Anyone who reads the deployed JavaScript can write to those columns. Rotate
+the token by changing both files and re-deploying.
 
 ## Deploying to GitHub Pages
 

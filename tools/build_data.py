@@ -13,21 +13,61 @@ GEO_IN = os.path.join(ROOT, 'tools', 'sau_adm1_source.geojson')
 # ---- cluster -> administrative region -------------------------------------
 # 13 health clusters mapped onto the 13 ADM1 regions of Saudi Arabia.
 # Makkah province carries four clusters (Makkah, Jeddah C1, Jeddah C2, Taif).
-CLUSTERS = {
-    'تجمع مكة المكرمة الصحي':    dict(en='Makkah Cluster',        short='Makkah',      region='SA-02'),
-    'تجمع جدة الصحي الأول':      dict(en='Jeddah Cluster 1',      short='Jeddah C1',   region='SA-02'),
-    'تجمع جدة الصحي الثاني':     dict(en='Jeddah Cluster 2',      short='Jeddah C2',   region='SA-02'),
-    'تجمع الطائف الصحي':         dict(en='Taif Cluster',          short='Taif',        region='SA-02'),
-    'تجمع المدينة المنورة الصحي': dict(en='Madinah Cluster',       short='Madinah',     region='SA-03'),
-    'تجمع الباحة الصحي':         dict(en='Al Baha Cluster',       short='Baha',        region='SA-11'),
-    'تجمع عسير الصحي':           dict(en='Aseer Cluster',         short='Aseer',       region='SA-14'),
-    'تجمع جازان الصحي':          dict(en='Jazan Cluster',         short='Jazan',       region='SA-09'),
-    'تجمع نجران الصحي':          dict(en='Najran Cluster',        short='Najran',      region='SA-10'),
-    'تجمع تبوك الصحي':           dict(en='Tabuk Cluster',         short='Tabuk',       region='SA-07'),
-    'تجمع حائل الصحي':           dict(en='Hail Cluster',          short='Hail',        region='SA-06'),
-    'تجمع الجوف الصحي':          dict(en='Jouf Cluster',          short='Jouf',        region='SA-12'),
-    'تجمع الحدود الشمالية الصحي': dict(en='Northern Borders Cluster', short='N. Borders', region='SA-08'),
-}
+CLUSTER_DEFS = [
+    dict(en='Makkah Cluster',           short='Makkah',     region='SA-02', aliases=['تجمع مكة المكرمة الصحي', 'مكة', 'مكة المكرمة']),
+    dict(en='Jeddah Cluster 1',         short='Jeddah C1',  region='SA-02', aliases=['تجمع جدة الصحي الأول', 'جدة 1', 'جدة الأول']),
+    dict(en='Jeddah Cluster 2',         short='Jeddah C2',  region='SA-02', aliases=['تجمع جدة الصحي الثاني', 'جدة 2', 'جدة الثاني']),
+    dict(en='Taif Cluster',             short='Taif',       region='SA-02', aliases=['تجمع الطائف الصحي', 'الطائف']),
+    dict(en='Madinah Cluster',          short='Madinah',    region='SA-03', aliases=['تجمع المدينة المنورة الصحي', 'المدينة', 'المدينة المنورة']),
+    dict(en='Al Baha Cluster',          short='Baha',       region='SA-11', aliases=['تجمع الباحة الصحي', 'الباحة']),
+    dict(en='Aseer Cluster',            short='Aseer',      region='SA-14', aliases=['تجمع عسير الصحي', 'عسير']),
+    dict(en='Jazan Cluster',            short='Jazan',      region='SA-09', aliases=['تجمع جازان الصحي', 'جازان']),
+    dict(en='Najran Cluster',           short='Najran',     region='SA-10', aliases=['تجمع نجران الصحي', 'نجران']),
+    dict(en='Tabuk Cluster',            short='Tabuk',      region='SA-07', aliases=['تجمع تبوك الصحي', 'تبوك']),
+    dict(en='Hail Cluster',             short='Hail',       region='SA-06', aliases=['تجمع حائل الصحي', 'حائل']),
+    dict(en='Jouf Cluster',             short='Jouf',       region='SA-12', aliases=['تجمع الجوف الصحي', 'الجوف']),
+    dict(en='Northern Borders Cluster', short='N. Borders', region='SA-08', aliases=['تجمع الحدود الشمالية الصحي', 'الحدود الشمالية']),
+]
+
+_DIACRITICS = dict.fromkeys(range(0x064B, 0x0653), None)
+_DIACRITICS[0x0640] = None
+
+def norm_ar(v):
+    """Normalise a cluster label: the sheet has already been re-keyed once
+    (full names -> short names), so never match on exact strings."""
+    s = str(v or '').translate(_DIACRITICS)
+    for a in 'أإآٱ':
+        s = s.replace(a, 'ا')
+    for y in 'ىئ':
+        s = s.replace(y, 'ي')
+    s = s.replace('ة', 'ه')
+    s = ''.join(str(ord(c) - 0x0660) if 0x0660 <= ord(c) <= 0x0669 else c for c in s)
+    for w in ('تجمع', 'الصحي', 'الصحى', 'محافظة', 'cluster'):
+        s = s.replace(w, ' ')
+    s = ''.join(c if c.isalnum() else ' ' for c in s)
+    return ' '.join(s.split()).lower()
+
+CLUSTER_INDEX = {}
+for _d in CLUSTER_DEFS:
+    for _a in _d['aliases'] + [_d['en'], _d['short']]:
+        k = norm_ar(_a)
+        if k:
+            CLUSTER_INDEX[k] = _d
+
+def resolve_cluster(raw):
+    k = norm_ar(raw)
+    if not k:
+        return None
+    if k in CLUSTER_INDEX:
+        return CLUSTER_INDEX[k]
+    hits = []
+    for key, d in CLUSTER_INDEX.items():
+        if len(key) < 3:
+            continue
+        if key in k or k in key:
+            if d not in hits:
+                hits.append(d)
+    return hits[0] if len(hits) == 1 else None
 
 REGION_NAMES = {
     'SA-01': ('Riyadh', 'الرياض'),            'SA-02': ('Makkah', 'مكة المكرمة'),
@@ -66,7 +106,7 @@ missions, unknown = [], set()
 for i, r in enumerate(rows):
     g = lambda k: (r.get(k) or '').strip()
     cl = g('Cluster')
-    meta = CLUSTERS.get(cl)
+    meta = resolve_cluster(cl)
     if not meta:
         unknown.add(cl)
         meta = dict(en=cl or 'Unassigned', short=cl or '—', region=None)
@@ -95,6 +135,16 @@ for i, r in enumerate(rows):
         'notes': g('Notes'),
         'nextStep': g('Next Step'),
         'nextVisit': g('Next Visit Due'),
+        'cls': g('Class'),
+        'visitLog': g('Visit Log'),
+        'informed': g('Informed'),
+        'incubator': g('Has Incubator'),
+        'incubatorSerial': g('Incubator Serial'),
+        'dosing': g('Dosing System'),
+        'shortage': g('Shortage Items'),
+        'action': g('Action Required'),
+        'feedback': g('Feedback - Missing Items'),
+        'sheetRow': i + 2,
         'lat': lat, 'lng': lng,
     })
 
@@ -172,7 +222,7 @@ for f in src['features']:
     geom = simplify_geom(f['geometry'], 0.012)
     if not geom:
         continue
-    clusters = sorted({v['short'] for v in CLUSTERS.values() if v['region'] == iso})
+    clusters = sorted({d['short'] for d in CLUSTER_DEFS if d['region'] == iso})
     feats.append({
         'type': 'Feature',
         'properties': {'iso': iso, 'nameEn': en, 'nameAr': ar,
@@ -186,7 +236,7 @@ regions = {'type': 'FeatureCollection', 'features': feats}
 payload = {
     'generated': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
     'source': 'Google Sheet · Territory Missions — Hospital Activation (Missions tab)',
-    'clusters': [dict(ar=k, **v) for k, v in CLUSTERS.items()],
+    'clusters': CLUSTER_DEFS,
     'regionNames': {k: {'en': v[0], 'ar': v[1]} for k, v in REGION_NAMES.items()},
     'missions': missions,
 }

@@ -10,21 +10,70 @@ var $$ = function (s, r) { return Array.prototype.slice.call((r || document).que
 /* ── cluster → administrative region ─────────────────────────────────────
    13 health clusters over the 13 ADM1 regions; Makkah province carries
    four of them (Makkah, Jeddah C1, Jeddah C2, Taif).                      */
-var CLUSTERS = {
-  'تجمع مكة المكرمة الصحي':      { en: 'Makkah Cluster',            short: 'Makkah',     region: 'SA-02' },
-  'تجمع جدة الصحي الأول':        { en: 'Jeddah Cluster 1',          short: 'Jeddah C1',  region: 'SA-02' },
-  'تجمع جدة الصحي الثاني':       { en: 'Jeddah Cluster 2',          short: 'Jeddah C2',  region: 'SA-02' },
-  'تجمع الطائف الصحي':           { en: 'Taif Cluster',              short: 'Taif',       region: 'SA-02' },
-  'تجمع المدينة المنورة الصحي':  { en: 'Madinah Cluster',           short: 'Madinah',    region: 'SA-03' },
-  'تجمع الباحة الصحي':           { en: 'Al Baha Cluster',           short: 'Baha',       region: 'SA-11' },
-  'تجمع عسير الصحي':             { en: 'Aseer Cluster',             short: 'Aseer',      region: 'SA-14' },
-  'تجمع جازان الصحي':            { en: 'Jazan Cluster',             short: 'Jazan',      region: 'SA-09' },
-  'تجمع نجران الصحي':            { en: 'Najran Cluster',            short: 'Najran',     region: 'SA-10' },
-  'تجمع تبوك الصحي':             { en: 'Tabuk Cluster',             short: 'Tabuk',      region: 'SA-07' },
-  'تجمع حائل الصحي':             { en: 'Hail Cluster',              short: 'Hail',       region: 'SA-06' },
-  'تجمع الجوف الصحي':            { en: 'Jouf Cluster',              short: 'Jouf',       region: 'SA-12' },
-  'تجمع الحدود الشمالية الصحي':  { en: 'Northern Borders Cluster',  short: 'N. Borders', region: 'SA-08' }
-};
+var CLUSTER_DEFS = [
+  { en: 'Makkah Cluster',           short: 'Makkah',     region: 'SA-02', aliases: ['تجمع مكة المكرمة الصحي', 'مكة', 'مكة المكرمة', 'makkah'] },
+  { en: 'Jeddah Cluster 1',         short: 'Jeddah C1',  region: 'SA-02', aliases: ['تجمع جدة الصحي الأول', 'جدة 1', 'جدة الأول', 'جدة الاول', 'jeddah 1'] },
+  { en: 'Jeddah Cluster 2',         short: 'Jeddah C2',  region: 'SA-02', aliases: ['تجمع جدة الصحي الثاني', 'جدة 2', 'جدة الثاني', 'jeddah 2'] },
+  { en: 'Taif Cluster',             short: 'Taif',       region: 'SA-02', aliases: ['تجمع الطائف الصحي', 'الطائف', 'taif'] },
+  { en: 'Madinah Cluster',          short: 'Madinah',    region: 'SA-03', aliases: ['تجمع المدينة المنورة الصحي', 'المدينة', 'المدينة المنورة', 'madinah'] },
+  { en: 'Al Baha Cluster',          short: 'Baha',       region: 'SA-11', aliases: ['تجمع الباحة الصحي', 'الباحة', 'baha'] },
+  { en: 'Aseer Cluster',            short: 'Aseer',      region: 'SA-14', aliases: ['تجمع عسير الصحي', 'عسير', 'aseer', 'asir'] },
+  { en: 'Jazan Cluster',            short: 'Jazan',      region: 'SA-09', aliases: ['تجمع جازان الصحي', 'جازان', 'jazan'] },
+  { en: 'Najran Cluster',           short: 'Najran',     region: 'SA-10', aliases: ['تجمع نجران الصحي', 'نجران', 'najran'] },
+  { en: 'Tabuk Cluster',            short: 'Tabuk',      region: 'SA-07', aliases: ['تجمع تبوك الصحي', 'تبوك', 'tabuk'] },
+  { en: 'Hail Cluster',             short: 'Hail',       region: 'SA-06', aliases: ['تجمع حائل الصحي', 'حائل', 'hail'] },
+  { en: 'Jouf Cluster',             short: 'Jouf',       region: 'SA-12', aliases: ['تجمع الجوف الصحي', 'الجوف', 'jouf', 'al jouf'] },
+  { en: 'Northern Borders Cluster', short: 'N. Borders', region: 'SA-08', aliases: ['تجمع الحدود الشمالية الصحي', 'الحدود الشمالية', 'northern borders'] }
+];
+
+/* The sheet has already been re-keyed once (full names → short names), so
+   match on a normalised form with aliases instead of exact strings:
+   strip Arabic diacritics, unify alef/ya/ta-marbuta, drop the filler words
+   تجمع / الصحي / محافظة, and fold Arabic-Indic digits. */
+function normAr(v) {
+  return String(v == null ? '' : v)
+    .replace(/[\u064B-\u0652\u0640]/g, '')
+    .replace(/[\u0623\u0625\u0622\u0671]/g, '\u0627')
+    .replace(/[\u0649\u0626]/g, '\u064A')
+    .replace(/\u0629/g, '\u0647')
+    .replace(/[\u0660-\u0669]/g, function (d) { return String(d.charCodeAt(0) - 0x0660); })
+    .replace(/(تجمع|الصحي|الصحى|محافظة|cluster)/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim().toLowerCase();
+}
+
+var CLUSTER_INDEX = (function () {
+  var ix = {};
+  CLUSTER_DEFS.forEach(function (d) {
+    d.aliases.concat([d.en, d.short]).forEach(function (a) {
+      var k = normAr(a);
+      if (k) ix[k] = d;
+    });
+  });
+  return ix;
+})();
+
+var unmappedClusters = {};
+function resolveCluster(raw) {
+  var k = normAr(raw);
+  if (!k) return null;
+  if (CLUSTER_INDEX[k]) return CLUSTER_INDEX[k];
+  /* then containment — but only accept it when every candidate points at
+     the same cluster, so a bare "جدة" is reported rather than guessed */
+  var keys = Object.keys(CLUSTER_INDEX), hits = [], i;
+  for (i = 0; i < keys.length; i++) {
+    if (keys[i].length < 3) continue;
+    if (k.indexOf(keys[i]) > -1 || keys[i].indexOf(k) > -1) {
+      if (hits.indexOf(CLUSTER_INDEX[keys[i]]) === -1) hits.push(CLUSTER_INDEX[keys[i]]);
+    }
+  }
+  if (hits.length === 1) return hits[0];
+  if (!unmappedClusters[raw]) {
+    unmappedClusters[raw] = 1;
+    console.warn('[TM] cluster not recognised, province shading will be missing for:', raw);
+  }
+  return null;
+}
 
 /* exposed for debugging/support: window.TM.map, window.TM.missions … */
 var state = window.TM = {
@@ -51,9 +100,10 @@ function parseCSV(text) {
   if (val.length || row.length) { row.push(val); rows.push(row); }
   if (!rows.length) return [];
   var head = rows[0].map(function (h) { return h.trim(); });
-  return rows.slice(1).map(function (r) {
+  return rows.slice(1).map(function (r, i) {
     var o = {};
-    head.forEach(function (h, j) { o[h] = (r[j] || '').trim(); });
+    head.forEach(function (h, j) { if (h) o[h] = (r[j] || '').trim(); });
+    o.__row = i + 2;          // 1-based sheet row, header is row 1
     return o;
   }).filter(function (o) { return o['Hospital Name']; });
 }
@@ -76,7 +126,7 @@ function normalizeRows(rows) {
     var lat = num(r['Latitude']), lng = num(r['Longitude']);
     if (lat === null || lng === null) return;
     var cl = (r['Cluster'] || '').trim();
-    var meta = CLUSTERS[cl] || { en: cl || 'Unassigned', short: cl || '—', region: null };
+    var meta = resolveCluster(cl) || { en: cl || 'Unassigned', short: cl || '—', region: null };
     out.push({
       id: 'h' + (i + 1),
       name: (r['Hospital Name'] || '').trim(),
@@ -95,6 +145,16 @@ function normalizeRows(rows) {
       notes: (r['Notes'] || '').trim(),
       nextStep: (r['Next Step'] || '').trim(),
       nextVisit: (r['Next Visit Due'] || '').trim(),
+      cls: (r['Class'] || '').trim(),
+      visitLog: (r['Visit Log'] || '').trim(),
+      informed: (r['Informed'] || '').trim(),
+      incubator: (r['Has Incubator'] || '').trim(),
+      incubatorSerial: (r['Incubator Serial'] || '').trim(),
+      dosing: (r['Dosing System'] || '').trim(),
+      shortage: (r['Shortage Items'] || '').trim(),
+      action: (r['Action Required'] || '').trim(),
+      feedback: (r['Feedback - Missing Items'] || '').trim(),
+      sheetRow: r.__row || (i + 2),
       lat: lat, lng: lng
     });
   });
@@ -460,13 +520,26 @@ function selectMission(m) {
       row(t('nextVisit'), m.nextVisit) +
       row(t('products'), prod) +
       row(t('nextStep'), m.nextStep) +
+      (m.cls ? row(t('cls'), m.cls) : '') +
+      (m.incubator ? row(t('fIncubator'), m.incubator + (m.incubatorSerial ? ' · ' + m.incubatorSerial : '')) : '') +
+      (m.shortage ? row(t('fShortage'), m.shortage) : '') +
+      (m.action ? row(t('fAction'), m.action) : '') +
+      (m.feedback ? row(t('fFeedback'), m.feedback) : '') +
       (m.notes ? row(t('notes'), m.notes) : '') +
+      (m.visitLog ? '<div class="row row-log"><span class="row-k">' + esc(t('fVisitLog')) +
+        '</span><span class="row-v log">' + esc(m.visitLog) + '</span></div>' : '') +
     '</div>' +
     '<div class="p-actions">' +
       (m.phone ? '<a class="act act-call" href="tel:' + esc(m.phone.replace(/\s/g, '')) + '">☎ ' + t('call') + '</a>' : '') +
       '<a class="act" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
         m.lat + ',' + m.lng + '">➤ ' + t('directions') + '</a>' +
-    '</div>';
+    '</div>' +
+    (editEnabled() ? '<div class="p-actions p-edit-row">' +
+      '<button type="button" class="act act-edit" id="btn-update">✎ ' + esc(t('update')) + '</button>' +
+    '</div>' : '');
+
+  var upd = $('#btn-update');
+  if (upd) upd.addEventListener('click', function () { openEditForm(m); });
 
   $('#panel').classList.add('open');
   $('#panel').setAttribute('aria-hidden', 'false');
@@ -587,6 +660,7 @@ function boot() {
     if (!document.hidden && state.map) state.map.invalidateSize(false);
   });
 
+  loadProducts();
   Promise.all([loadData(), fetch(CFG.REGIONS_URL).then(function (r) { return r.json(); })])
     .then(function (res) {
       var d = res[0];
@@ -633,6 +707,7 @@ function applyDeepLink() {
 
 /* exposed for tests + support debugging in the field */
 state.deepLink = applyDeepLink;
+state.postUpdate = postUpdate;   /* TM.postUpdate({...}) to test the endpoint */
 state.parseCSV = parseCSV;
 state.normalizeRows = normalizeRows;
 state.reload = function () { return loadData().then(function (d) {
@@ -673,6 +748,300 @@ function installPreviewToggle() {
   });
   $('#drawer').appendChild(btn);
 }
+
+/* ═══════════════════════════════════════ edit mode ═══ */
+function loadProducts() {
+  var url = CFG.PRODUCTS_CSV_URL;
+  var live = url
+    ? fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now(),
+                       CFG.CSV_TIMEOUT_MS || 8000)
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(function (t) {
+          if (/^\s*</.test(t)) throw new Error('not public');
+          var rows = parseCSV(t).filter(function (r) { return r['Product Name']; });
+          if (!rows.length) throw new Error('empty');
+          return rows.map(function (r) {
+            return { name: r['Product Name'], category: r['Category'] || '', code: r['Catalogue Number'] || '' };
+          });
+        })
+    : Promise.reject(new Error('no url'));
+
+  return live.catch(function () {
+    return fetch(CFG.PRODUCTS_FALLBACK_URL).then(function (r) { return r.json(); })
+      .then(function (j) { return j.products || []; });
+  }).then(function (list) {
+    state.products = list;
+    return list;
+  }).catch(function (e) {
+    console.warn('[TM] product list unavailable:', e.message);
+    state.products = [];
+    return [];
+  });
+}
+
+function editEnabled() { return !!(CFG.APPS_SCRIPT_URL || '').trim(); }
+
+function todayISO() {
+  var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+/* Y / N / — where — means "leave whatever the sheet already has" */
+function triGroup(name, label, value) {
+  var v = String(value || '').trim().toUpperCase();
+  v = (v === 'Y' || v === 'YES' || v === 'TRUE') ? 'Y'
+    : (v === 'N' || v === 'NO' || v === 'FALSE') ? 'N' : '';
+  return '<div class="fld"><label class="fld-k">' + esc(label) + '</label>' +
+    '<div class="tri" data-name="' + name + '" role="group" aria-label="' + esc(label) + '">' +
+      ['', 'Y', 'N'].map(function (opt) {
+        return '<button type="button" class="tri-b' + (v === opt ? ' on' : '') + '" data-v="' + opt + '">' +
+          (opt === '' ? '—' : opt === 'Y' ? esc(t('yes')) : esc(t('no'))) + '</button>';
+      }).join('') +
+    '</div></div>';
+}
+
+function productPicker(selectedCsv) {
+  var chosen = String(selectedCsv || '').split(',').map(function (x) { return x.trim(); })
+                 .filter(Boolean);
+  var list = state.products || [];
+  if (!list.length) {
+    return '<div class="fld"><label class="fld-k">' + esc(t('fShortage')) + '</label>' +
+      '<input type="text" class="in" data-name="shortage" value="' + esc(chosen.join(', ')) + '"></div>';
+  }
+  var cats = [];
+  list.forEach(function (p) { if (cats.indexOf(p.category) === -1) cats.push(p.category); });
+  return '<div class="fld"><label class="fld-k">' + esc(t('fShortage')) +
+    ' <span class="fld-count" id="shortage-count">' + chosen.length + ' ' + esc(t('selected')) + '</span></label>' +
+    '<div class="picker" data-name="shortage">' +
+      cats.map(function (c) {
+        return '<div class="pick-cat">' + esc(c) + '</div><div class="pick-row">' +
+          list.filter(function (p) { return p.category === c; }).map(function (p) {
+            var on = chosen.indexOf(p.name) > -1;
+            return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-p="' + esc(p.name) + '" ' +
+                   'title="' + esc(p.code) + '">' + esc(p.name) + '</button>';
+          }).join('') + '</div>';
+      }).join('') +
+    '</div></div>';
+}
+
+function openEditForm(m) {
+  if (!editEnabled()) { toast(t('editOff')); return; }
+  var total = m.target != null ? m.target : '';
+  var labels = { 'None': t('actNone'), 'Broken Device': t('actBroken'),
+                 'Training Needed': t('actTraining'), 'Product Complaint': t('actComplaint'),
+                 'Urgent Follow-up': t('actUrgent') };
+  var actions = (CFG.ACTION_OPTIONS || []).map(function (o) {
+    return '<option value="' + esc(o) + '"' + (m.action === o ? ' selected' : '') + '>' +
+           esc(labels[o] || o) + '</option>';
+  }).join('');
+
+  $('#panel-body').innerHTML =
+    '<form id="edit-form" class="edit" novalidate>' +
+      '<div class="edit-head">' +
+        '<h2>' + esc(m.name) + '</h2>' +
+        '<p>' + esc(m.city) + ' · ' + esc(state.lang === 'ar' ? m.cluster : m.clusterEn) + '</p>' +
+      '</div>' +
+      '<div class="fld"><label class="fld-k" for="f-mgr">' + esc(t('fManager')) + '</label>' +
+        '<input class="in" id="f-mgr" data-name="manager" type="text" value="' + esc(m.manager) + '"></div>' +
+      '<div class="fld"><label class="fld-k" for="f-phone">' + esc(t('fPhone')) + '</label>' +
+        '<input class="in" id="f-phone" data-name="phone" type="tel" inputmode="tel" value="' + esc(m.phone) + '"></div>' +
+      '<div class="fld"><label class="fld-k" for="f-date">' + esc(t('fLastVisit')) + '</label>' +
+        '<input class="in" id="f-date" data-name="lastVisit" type="date" value="' + esc(todayISO()) + '"></div>' +
+      '<div class="fld"><label class="fld-k" for="f-log">' + esc(t('fVisitLog')) + '</label>' +
+        '<textarea class="in" id="f-log" data-name="visitLog" rows="3"></textarea></div>' +
+      '<div class="fld"><label class="fld-k" for="f-adopted">' + esc(t('fPushAdopted')) + '</label>' +
+        '<div class="num-row"><input class="in num" id="f-adopted" data-name="adopted" type="number" min="0" ' +
+          'inputmode="numeric" value="' + (m.adopted != null ? m.adopted : '') + '">' +
+          '<span class="num-of">' + esc(t('outOf')) + ' <b>' + (total === '' ? '—' : esc(total)) + '</b></span></div></div>' +
+      triGroup('informed', t('fInformed'), m.informed) +
+      triGroup('incubator', t('fIncubator'), m.incubator) +
+      '<div class="fld" id="serial-fld"><label class="fld-k" for="f-serial">' + esc(t('fSerial')) + '</label>' +
+        '<input class="in" id="f-serial" data-name="incubatorSerial" type="text" value="' + esc(m.incubatorSerial) + '"></div>' +
+      triGroup('dosing', t('fDosing'), m.dosing) +
+      productPicker(m.shortage) +
+      '<div class="fld"><label class="fld-k" for="f-action">' + esc(t('fAction')) + '</label>' +
+        '<select class="in" id="f-action" data-name="action"><option value=""></option>' + actions + '</select></div>' +
+      '<div class="fld"><label class="fld-k" for="f-feedback">' + esc(t('fFeedback')) + '</label>' +
+        '<input class="in" id="f-feedback" data-name="feedback" type="text" value="' + esc(m.feedback) + '"></div>' +
+      '<div class="fld"><label class="fld-k" for="f-next">' + esc(t('fNextStep')) + '</label>' +
+        '<input class="in" id="f-next" data-name="nextStep" type="text" value="' + esc(m.nextStep) + '"></div>' +
+      '<p class="edit-err" id="edit-err" hidden role="alert"></p>' +
+      '<div class="edit-actions">' +
+        '<button type="button" class="act" id="edit-cancel">' + esc(t('cancel')) + '</button>' +
+        '<button type="submit" class="act act-call" id="edit-save">' + esc(t('save')) + '</button>' +
+      '</div>' +
+    '</form>';
+
+  var form = $('#edit-form');
+
+  var syncSerial = function () {
+    var g = form.querySelector('.tri[data-name="incubator"] .tri-b.on');
+    $('#serial-fld').hidden = !(g && g.dataset.v === 'Y');
+  };
+  syncSerial();
+
+  $$('.tri', form).forEach(function (grp) {
+    $$('.tri-b', grp).forEach(function (b) {
+      b.addEventListener('click', function () {
+        $$('.tri-b', grp).forEach(function (x) { x.classList.remove('on'); });
+        b.classList.add('on');
+        if (grp.dataset.name === 'incubator') syncSerial();
+      });
+    });
+  });
+
+  $$('.picker .chip', form).forEach(function (c) {
+    c.addEventListener('click', function () {
+      c.classList.toggle('on');
+      var n = $$('.picker .chip.on', form).length, el = $('#shortage-count');
+      if (el) el.textContent = n + ' ' + t('selected');
+    });
+  });
+
+  $('#edit-cancel').addEventListener('click', function () { selectMission(m); });
+  form.addEventListener('submit', function (e) { e.preventDefault(); saveEdit(m, form); });
+  $('#panel').scrollTop = 0;
+}
+
+function collectEdit(form) {
+  var val = function (n) {
+    var el = form.querySelector('[data-name="' + n + '"]');
+    return el ? String(el.value).trim() : '';
+  };
+  var tri = function (n) {
+    var b = form.querySelector('.tri[data-name="' + n + '"] .tri-b.on');
+    return b ? b.dataset.v : '';
+  };
+  var picker = form.querySelector('.picker[data-name="shortage"]');
+  var shortage = picker
+    ? $$('.chip.on', picker).map(function (c) { return c.dataset.p; }).join(', ')
+    : val('shortage');
+
+  var u = {};
+  var put = function (col, v) { if (v !== '' && v != null) u[col] = v; };
+  put('CSSD Manager Name', val('manager'));
+  put('CSSD Manager Phone', val('phone'));
+  put('Last Visit Date', val('lastVisit'));
+  put('Visit Log', val('visitLog'));
+  put('Products Adopted', val('adopted'));
+  put('Informed', tri('informed'));
+  put('Has Incubator', tri('incubator'));
+  if (tri('incubator') === 'Y') put('Incubator Serial', val('incubatorSerial'));
+  put('Dosing System', tri('dosing'));
+  put('Action Required', val('action'));
+  put('Feedback - Missing Items', val('feedback'));
+  put('Next Step', val('nextStep'));
+  /* an emptied picker is a real value: it clears the cell */
+  if (picker) u['Shortage Items'] = shortage;
+  else put('Shortage Items', shortage);
+  return u;
+}
+
+function saveEdit(m, form) {
+  var btn = $('#edit-save'), err = $('#edit-err');
+  var updates = collectEdit(form);
+  err.hidden = true;
+
+  if (!Object.keys(updates).length) { selectMission(m); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
+  form.classList.add('is-saving');
+
+  postUpdate({
+    token: CFG.WRITE_TOKEN,
+    row: m.sheetRow,
+    hospitalName: m.name,
+    cluster: m.cluster,
+    updates: updates
+  }).then(function (res) {
+    if (!res || res.ok !== true) throw new Error((res && res.error) || 'rejected by the script');
+    var map = {
+      'CSSD Manager Name': 'manager', 'CSSD Manager Phone': 'phone',
+      'Last Visit Date': 'lastVisit', 'Products Adopted': 'adopted',
+      'Informed': 'informed', 'Has Incubator': 'incubator',
+      'Incubator Serial': 'incubatorSerial', 'Dosing System': 'dosing',
+      'Shortage Items': 'shortage', 'Action Required': 'action',
+      'Feedback - Missing Items': 'feedback', 'Next Step': 'nextStep'
+    };
+    Object.keys(updates).forEach(function (k) {
+      if (k === 'Visit Log') {
+        m.visitLog = '[' + updates['Last Visit Date'] + '] ' + updates[k] +
+                     (m.visitLog ? '\n' + m.visitLog : '');
+        return;
+      }
+      if (map[k]) m[map[k]] = k === 'Products Adopted' ? num(updates[k]) : updates[k];
+    });
+    form.classList.remove('is-saving');
+    toast('✓ ' + t('saved'));
+    selectMission(m);
+    refresh();
+  }).catch(function (e) {
+    form.classList.remove('is-saving');
+    btn.disabled = false;
+    btn.textContent = t('retry');
+    err.textContent = t('saveFailed') + ' — ' + e.message;
+    err.hidden = false;
+    console.error('[TM] save failed', e);
+  });
+}
+
+/* Apps Script rejects a JSON content-type preflight, so post the body as
+   text/plain (a "simple" request that needs no preflight). If that still
+   fails — a proxy stripping it, say — retry once over JSONP. */
+function postUpdate(payload) {
+  var url = (CFG.APPS_SCRIPT_URL || '').trim();
+  if (!url) return Promise.reject(new Error('APPS_SCRIPT_URL is not set'));
+  var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  var timer = setTimeout(function () { if (ctl) ctl.abort(); }, CFG.SAVE_TIMEOUT_MS || 20000);
+
+  return fetch(url, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    redirect: 'follow',
+    signal: ctl ? ctl.signal : undefined
+  }).then(function (r) {
+    clearTimeout(timer);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.text();
+  }).then(function (txt) {
+    try { return JSON.parse(txt); }
+    catch (e) { throw new Error('unexpected reply from the script'); }
+  }).catch(function (e) {
+    clearTimeout(timer);
+    console.warn('[TM] POST failed (' + e.message + '), retrying over JSONP');
+    return jsonpUpdate(url, payload);
+  });
+}
+
+function jsonpUpdate(url, payload) {
+  return new Promise(function (resolve, reject) {
+    var cb = 'tmcb' + Date.now() + Math.floor(Math.random() * 1000);
+    var sc = document.createElement('script');
+    var done = false;
+    var cleanup = function () {
+      try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+      if (sc.parentNode) sc.parentNode.removeChild(sc);
+    };
+    window[cb] = function (data) { done = true; cleanup(); resolve(data); };
+    sc.onerror = function () { if (!done) { cleanup(); reject(new Error('network unreachable')); } };
+    setTimeout(function () { if (!done) { cleanup(); reject(new Error('timed out')); } },
+               CFG.SAVE_TIMEOUT_MS || 20000);
+    sc.src = url + (url.indexOf('?') > -1 ? '&' : '?') +
+      'callback=' + cb + '&payload=' + encodeURIComponent(JSON.stringify(payload));
+    document.body.appendChild(sc);
+  });
+}
+
+function toast(msg) {
+  var el = $('#toast');
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(el._t);
+  el._t = setTimeout(function () { el.hidden = true; }, 3200);
+}
+
 
 /* ════════════════════════════════════ gate ═══ */
 function sha256(str) {
