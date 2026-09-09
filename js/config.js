@@ -33,20 +33,20 @@ window.TM_CONFIG = {
   GATE_ENABLED: true,
 
   /* ── Agent edit mode (writes back to the sheet) ────────────────────────
-     Paste the /exec URL you get from deploying tools/apps-script/Code.gs
-     (see README → "Turning on edit mode"). Until it is set, the Update
-     button stays hidden and the map is read-only.                        */
-  APPS_SCRIPT_URL: '',
+     The Apps Script web app that owns the writes. It also serves
+     ?action=test | products | warehouses. Blank this to make the map
+     read-only again (the Update button disappears).
 
-  /* Must match SHARED_TOKEN in Code.gs. It ships in this file, so it only
-     stops drive-by writes — it is not authentication. */
-  WRITE_TOKEN: 'change-me',
+     The script decides Stage and Visit Status itself, so the form never
+     sends them — it sends the visit facts and shows the stage that comes
+     back. Note the endpoint takes no token: anyone with the URL can post
+     to it.                                                               */
+  APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzSsqfQz4AanspaHROlTFMnz4aPlNMYPb7BX3-wsgyEk48gfkv0X-INVvDzWFZcSEba/exec',
 
   SAVE_TIMEOUT_MS: 20000,
 
-  /* Shortage Items choices — read live from the Product Reference tab,
-     falling back to data/products.json. */
-  PRODUCTS_CSV_URL: 'https://docs.google.com/spreadsheets/d/1HBRcW_MYKdNy-YOjAbpMvYtx7wthTbPTAPlhV4uCKE8/gviz/tq?tqx=out:csv&headers=1&sheet=Product%20Reference',
+  /* Shortage Items choices come from the same web app (?action=products),
+     falling back to the bundled data/products.json when it is unreachable. */
   PRODUCTS_FALLBACK_URL: 'data/products.json',
 
   ACTION_OPTIONS: ['None', 'Broken Device', 'Training Needed', 'Product Complaint', 'Urgent Follow-up'],

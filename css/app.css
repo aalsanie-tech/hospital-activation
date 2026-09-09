@@ -506,3 +506,16 @@ select.in{
   animation:spin .7s linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* a hospital the script just promoted — make the pin announce itself */
+.pin-wrap.just-moved{z-index:9999!important}
+.pin-wrap.just-moved .pin::after{
+  content:''; position:absolute; left:50%; top:50%; width:22px; height:22px;
+  margin:-11px 0 0 -11px; border-radius:50%; pointer-events:none;
+  border:2px solid var(--c,#22ff88);
+  animation:promoted 1.3s ease-out 2;
+}
+@keyframes promoted{
+  0%{transform:scale(.6);opacity:.95}
+  100%{transform:scale(4.2);opacity:0}
+}

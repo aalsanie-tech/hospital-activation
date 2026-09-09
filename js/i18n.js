@@ -34,7 +34,8 @@ window.TM_I18N = {
     noChange: 'no change', yes: 'Y', no: 'N', cls: 'Class',
     actNone: 'None', actBroken: 'Broken Device', actTraining: 'Training Needed',
     actComplaint: 'Product Complaint', actUrgent: 'Urgent Follow-up',
-    editOff: 'Edit mode is not configured yet', pickProducts: 'Select products'
+    editOff: 'Edit mode is not configured yet', pickProducts: 'Select products',
+    stage2: 'Stage'
   },
   ar: {
     dir: 'rtl', lang: 'ar',
@@ -62,6 +63,7 @@ window.TM_I18N = {
     noChange: 'دون تغيير', yes: 'نعم', no: 'لا', cls: 'التصنيف',
     actNone: 'لا شيء', actBroken: 'جهاز معطل', actTraining: 'يحتاج تدريب',
     actComplaint: 'شكوى منتج', actUrgent: 'متابعة عاجلة',
-    editOff: 'وضع التعديل غير مفعّل بعد', pickProducts: 'اختر المنتجات'
+    editOff: 'وضع التعديل غير مفعّل بعد', pickProducts: 'اختر المنتجات',
+    stage2: 'المرحلة'
   }
 };

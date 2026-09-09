@@ -93,83 +93,63 @@ live with leaking.
 
 ---
 
-## Turning on edit mode
+## Agent edit mode
 
-Agents can update a hospital from the map: open a hospital → **Update** →
-fill the form → **Save**. It writes straight back to the "Hospital
-Activation" tab. Until the endpoint below is configured the button stays
-hidden and the map is read-only.
+Open a hospital → **Update** → fill the form → **Save**. It posts to the
+Apps Script web app in `APPS_SCRIPT_URL` ([`js/config.js`](js/config.js)),
+which writes to the "Hospital Activation" tab and returns the stage it
+derived. Blank that URL to make the map read-only again — the Update button
+disappears with it.
 
-**1 — Add the script**
+### The contract
 
-Open the sheet → **Extensions → Apps Script** → replace the contents of
-`Code.gs` with [`tools/apps-script/Code.gs`](tools/apps-script/Code.gs).
+`POST` a flat JSON body (sent as `text/plain`, so no CORS preflight — Apps
+Script cannot answer one). `hospital_name` must match column A exactly:
 
-**2 — Set a shared token**
-
-In `Code.gs` change `SHARED_TOKEN` from `change-me` to something private,
-and put the identical string in `WRITE_TOKEN` in
-[`js/config.js`](js/config.js).
-
-**3 — Check access**
-
-Run the `setup` function once from the Apps Script editor. Approve the
-permission prompt. It reports the row count and adds any columns the form
-needs that the sheet does not have yet (`Informed`, `Dosing System`, …).
-
-**4 — Deploy**
-
-**Deploy → New deployment → Web app**
-* Execute as: **Me**
-* Who has access: **Anyone**
-
-Copy the `/exec` URL into `APPS_SCRIPT_URL` in `js/config.js`, then commit
-and push. Re-deploy (**Manage deployments → Edit → Version: New**) whenever
-you change `Code.gs`.
-
-**Check it from the browser console** on the live site:
-
-```js
-TM.postUpdate({ token: TM_CONFIG.WRITE_TOKEN, row: 2,
-                hospitalName: TM.missions[0].name,
-                updates: { 'Next Step': 'endpoint test' } })
+```json
+{ "hospital_name": "مستشفى الملك فيصل ( الششه)",
+  "cssd_manager": "…", "phone": "…", "last_visit": "2026-09-09",
+  "visit_log": "…", "push_adopted": "3", "informed": "Y",
+  "has_incubator": "Y", "incubator_serial": "30", "dosing_system": "N",
+  "shortage_items": "BT224, GUL Ultra Pouch", "action_required": "None",
+  "feedback": "", "next_step": "…" }
 ```
 
-`{ok: true, row: 2, updated: [...]}` means it is wired up.
+Reply: `{"success": true, "row": 5, "updated": [...], "stage": "2-Visited"}`
+or `{"success": false, "error": "…"}`.
 
-### What the form writes
+**The script owns Stage and Visit Status.** The form never sends them; it
+sends the visit facts and reads the stage back. That stage is applied to the
+map immediately — the pin re-colours, the legend and conquest bar update,
+and the promoted pin pulses once so the change is visible. The stage is also
+shown in the save confirmation.
 
-| Form field | Sheet column |
+The `—` on each Y/N toggle means "leave the sheet's value alone", so those
+keys are omitted unless the agent picked Y or N. Shortage Items is the
+exception: clearing every chip sends an empty string and clears the cell.
+
+### The web app's other endpoints
+
+| GET | Returns |
 |---|---|
-| CSSD Manager Name | `CSSD Manager Name` |
-| Phone | `CSSD Manager Phone` |
-| Last Visit Date (defaults to today) | `Last Visit Date` |
-| Visit Log | `Visit Log` — prepended as `[date] text`, older entries kept |
-| Push Adopted | `Products Adopted` (+ recomputes `Adoption %` when a target exists) |
-| Informed / Has Incubator / Dosing System | `Informed` / `Has Incubator` / `Dosing System` |
-| Incubator Serial (only when Has Incubator = Y) | `Incubator Serial` |
-| Shortage Items | `Shortage Items`, comma separated |
-| Action Required | `Action Required` |
-| Feedback — Missing Items | `Feedback - Missing Items` |
-| Next Step | `Next Step` |
+| `?action=test` | health check + hospital count |
+| `?action=products` | the Shortage Items choices (the map loads these on start, falling back to `data/products.json`) |
+| `?action=warehouses` | Nupco warehouses with `lat`/`lng` and the clusters each serves — **not used by the map yet** |
 
-The Y/N toggles have three states; **—** means "leave the sheet alone", so
-an agent never overwrites a known value with a guess. Shortage Items is the
-exception: clearing every chip clears the cell.
+Check the endpoint from the browser console on the live site:
 
-Rows are addressed by sheet row number, and the script re-checks the
-hospital name at that row before writing. If rows were sorted or inserted
-in the meantime it searches by name + cluster instead, and refuses rather
-than guesses when that is ambiguous.
+```js
+TM.postUpdate({ hospital_name: '__nope__' })   // → {success:false, error:'Hospital not found: __nope__'}
+```
 
-**Edit mode does not change Stage.** A visit logged from the field will not
-turn a pin from blue to amber — stage stays under your control in the sheet.
+### Security
 
-**The write endpoint is public.** "Who has access: Anyone" is what lets
-phones post to it without a Google login; the token ships inside
-`js/config.js`, so it stops drive-by writes but is not authentication.
-Anyone who reads the deployed JavaScript can write to those columns. Rotate
-the token by changing both files and re-deploying.
+The web app is deployed as "Anyone", which is what lets phones post without
+a Google login, and its URL ships inside `js/config.js` on a public Pages
+site. **Anyone who reads that JavaScript can write to those columns.** There
+is no token on the endpoint. If that matters, add a shared-secret check in
+the script and send it from `config.js` — a deterrent, not authentication —
+or move writes behind something that can actually authenticate.
 
 ## Deploying to GitHub Pages
 

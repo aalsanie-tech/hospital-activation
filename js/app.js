@@ -751,22 +751,24 @@ function installPreviewToggle() {
 
 /* ═══════════════════════════════════════ edit mode ═══ */
 function loadProducts() {
-  var url = CFG.PRODUCTS_CSV_URL;
+  var url = (CFG.APPS_SCRIPT_URL || '').trim();
   var live = url
-    ? fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now(),
+    ? fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') + 'action=products',
                        CFG.CSV_TIMEOUT_MS || 8000)
-        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
-        .then(function (t) {
-          if (/^\s*</.test(t)) throw new Error('not public');
-          var rows = parseCSV(t).filter(function (r) { return r['Product Name']; });
-          if (!rows.length) throw new Error('empty');
-          return rows.map(function (r) {
-            return { name: r['Product Name'], category: r['Category'] || '', code: r['Catalogue Number'] || '' };
-          });
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (j) {
+          if (!j || j.success !== true || !j.products || !j.products.length) {
+            throw new Error((j && j.error) || 'no products returned');
+          }
+          return j.products.map(function (p) {
+            return { name: String(p.name || ''), category: String(p.category || ''),
+                     code: String(p.code == null ? '' : p.code) };
+          }).filter(function (p) { return p.name; });
         })
-    : Promise.reject(new Error('no url'));
+    : Promise.reject(new Error('no endpoint'));
 
-  return live.catch(function () {
+  return live.catch(function (e) {
+    console.warn('[TM] product list from the web app failed (' + e.message + '), using the bundled copy');
     return fetch(CFG.PRODUCTS_FALLBACK_URL).then(function (r) { return r.json(); })
       .then(function (j) { return j.products || []; });
   }).then(function (list) {
@@ -913,69 +915,85 @@ function collectEdit(form) {
     return b ? b.dataset.v : '';
   };
   var picker = form.querySelector('.picker[data-name="shortage"]');
-  var shortage = picker
-    ? $$('.chip.on', picker).map(function (c) { return c.dataset.p; }).join(', ')
-    : val('shortage');
 
-  var u = {};
-  var put = function (col, v) { if (v !== '' && v != null) u[col] = v; };
-  put('CSSD Manager Name', val('manager'));
-  put('CSSD Manager Phone', val('phone'));
-  put('Last Visit Date', val('lastVisit'));
-  put('Visit Log', val('visitLog'));
-  put('Products Adopted', val('adopted'));
-  put('Informed', tri('informed'));
-  put('Has Incubator', tri('incubator'));
-  if (tri('incubator') === 'Y') put('Incubator Serial', val('incubatorSerial'));
-  put('Dosing System', tri('dosing'));
-  put('Action Required', val('action'));
-  put('Feedback - Missing Items', val('feedback'));
-  put('Next Step', val('nextStep'));
-  /* an emptied picker is a real value: it clears the cell */
-  if (picker) u['Shortage Items'] = shortage;
-  else put('Shortage Items', shortage);
+  /* Flat snake_case, exactly what the web app expects. Stage and Visit
+     Status are deliberately absent — the script derives those. */
+  var u = {
+    cssd_manager: val('manager'),
+    phone: val('phone'),
+    last_visit: val('lastVisit'),
+    visit_log: val('visitLog'),
+    push_adopted: val('adopted'),
+    action_required: val('action'),
+    feedback: val('feedback'),
+    next_step: val('nextStep'),
+    shortage_items: picker
+      ? $$('.chip.on', picker).map(function (c) { return c.dataset.p; }).join(', ')
+      : val('shortage')
+  };
+
+  /* the Y/N/— toggles: "—" means leave the sheet's value alone, so send
+     those keys only when the agent actually picked Y or N */
+  if (tri('informed')) u.informed = tri('informed');
+  if (tri('dosing')) u.dosing_system = tri('dosing');
+  if (tri('incubator')) {
+    u.has_incubator = tri('incubator');
+    if (tri('incubator') === 'Y') u.incubator_serial = val('incubatorSerial');
+  }
   return u;
 }
 
 function saveEdit(m, form) {
   var btn = $('#edit-save'), err = $('#edit-err');
-  var updates = collectEdit(form);
+  var fields = collectEdit(form);
   err.hidden = true;
-
-  if (!Object.keys(updates).length) { selectMission(m); return; }
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
   form.classList.add('is-saving');
 
-  postUpdate({
-    token: CFG.WRITE_TOKEN,
-    row: m.sheetRow,
-    hospitalName: m.name,
-    cluster: m.cluster,
-    updates: updates
-  }).then(function (res) {
-    if (!res || res.ok !== true) throw new Error((res && res.error) || 'rejected by the script');
-    var map = {
-      'CSSD Manager Name': 'manager', 'CSSD Manager Phone': 'phone',
-      'Last Visit Date': 'lastVisit', 'Products Adopted': 'adopted',
-      'Informed': 'informed', 'Has Incubator': 'incubator',
-      'Incubator Serial': 'incubatorSerial', 'Dosing System': 'dosing',
-      'Shortage Items': 'shortage', 'Action Required': 'action',
-      'Feedback - Missing Items': 'feedback', 'Next Step': 'nextStep'
-    };
-    Object.keys(updates).forEach(function (k) {
-      if (k === 'Visit Log') {
-        m.visitLog = '[' + updates['Last Visit Date'] + '] ' + updates[k] +
-                     (m.visitLog ? '\n' + m.visitLog : '');
-        return;
-      }
-      if (map[k]) m[map[k]] = k === 'Products Adopted' ? num(updates[k]) : updates[k];
-    });
+  var payload = { hospital_name: m.name };
+  Object.keys(fields).forEach(function (k) { payload[k] = fields[k]; });
+
+  postUpdate(payload).then(function (res) {
+    if (!res || res.success !== true) {
+      throw new Error((res && res.error) || 'the script rejected the update');
+    }
+
+    /* reflect the visit locally so the panel is right straight away */
+    m.manager = fields.cssd_manager;
+    m.phone = fields.phone;
+    m.lastVisit = fields.last_visit;
+    m.adopted = num(fields.push_adopted);
+    m.action = fields.action_required;
+    m.feedback = fields.feedback;
+    m.nextStep = fields.next_step;
+    m.shortage = fields.shortage_items;
+    if (fields.informed) m.informed = fields.informed;
+    if (fields.dosing_system) m.dosing = fields.dosing_system;
+    if (fields.has_incubator) {
+      m.incubator = fields.has_incubator;
+      if (fields.incubator_serial != null) m.incubatorSerial = fields.incubator_serial;
+    }
+    if (fields.visit_log) {
+      m.visitLog = '[' + fields.last_visit + '] ' + fields.visit_log +
+                   (m.visitLog ? '\n' + m.visitLog : '');
+    }
+
+    /* the script decides the stage — take it back and let the pin move */
+    var moved = false;
+    if (res.stage) {
+      var ns = parseStage(res.stage);
+      moved = ns !== m.stage;
+      m.stage = ns;
+      m.stageLabel = res.stage;
+    }
+
     form.classList.remove('is-saving');
-    toast('✓ ' + t('saved'));
+    toast('✓ ' + t('saved') + (res.stage ? ' · ' + t('stage2') + ' ' + res.stage : ''));
     selectMission(m);
     refresh();
+    if (moved) flashPin(m);
   }).catch(function (e) {
     form.classList.remove('is-saving');
     btn.disabled = false;
@@ -986,9 +1004,25 @@ function saveEdit(m, form) {
   });
 }
 
-/* Apps Script rejects a JSON content-type preflight, so post the body as
-   text/plain (a "simple" request that needs no preflight). If that still
-   fails — a proxy stripping it, say — retry once over JSONP. */
+/* a promoted hospital should be visible on the map, not just in the panel */
+function flashPin(m) {
+  var mk = state.markers[m.id];
+  if (!mk) return;
+  var el = mk.getElement();
+  if (!el) return;
+  el.classList.remove('just-moved');
+  void el.offsetWidth;
+  el.classList.add('just-moved');
+  setTimeout(function () { el.classList.remove('just-moved'); }, 2600);
+}
+
+/* Apps Script cannot answer a CORS preflight, so the body goes as
+   text/plain — a "simple" request. The /exec URL answers with a 302 to
+   script.googleusercontent.com; the script has already run by then and the
+   redirect just carries the JSON back, so `redirect: follow` is required.
+   There is no JSONP fallback on purpose: this web app's doGet only serves
+   test/products/warehouses, so a retry over GET would not write anything
+   and could look like success. A failed POST is reported as a failure. */
 function postUpdate(payload) {
   var url = (CFG.APPS_SCRIPT_URL || '').trim();
   if (!url) return Promise.reject(new Error('APPS_SCRIPT_URL is not set'));
@@ -1008,29 +1042,9 @@ function postUpdate(payload) {
   }).then(function (txt) {
     try { return JSON.parse(txt); }
     catch (e) { throw new Error('unexpected reply from the script'); }
-  }).catch(function (e) {
+  }, function (e) {
     clearTimeout(timer);
-    console.warn('[TM] POST failed (' + e.message + '), retrying over JSONP');
-    return jsonpUpdate(url, payload);
-  });
-}
-
-function jsonpUpdate(url, payload) {
-  return new Promise(function (resolve, reject) {
-    var cb = 'tmcb' + Date.now() + Math.floor(Math.random() * 1000);
-    var sc = document.createElement('script');
-    var done = false;
-    var cleanup = function () {
-      try { delete window[cb]; } catch (e) { window[cb] = undefined; }
-      if (sc.parentNode) sc.parentNode.removeChild(sc);
-    };
-    window[cb] = function (data) { done = true; cleanup(); resolve(data); };
-    sc.onerror = function () { if (!done) { cleanup(); reject(new Error('network unreachable')); } };
-    setTimeout(function () { if (!done) { cleanup(); reject(new Error('timed out')); } },
-               CFG.SAVE_TIMEOUT_MS || 20000);
-    sc.src = url + (url.indexOf('?') > -1 ? '&' : '?') +
-      'callback=' + cb + '&payload=' + encodeURIComponent(JSON.stringify(payload));
-    document.body.appendChild(sc);
+    throw new Error(e.name === 'AbortError' ? 'timed out' : 'network unreachable');
   });
 }
 
