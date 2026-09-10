@@ -211,14 +211,27 @@ python3 -m http.server 8123          # from the repo root
   --screenshot=out.png "http://127.0.0.1:8123/index.html?nogate=1&sim=half&preset=twilight"
 ```
 
-### Pin spacing
+### Pin placement: apart when zoomed out, real location when zoomed in
 
-Hospitals in a city share one coordinate in the sheet. Stacks are placed
-greedily around that point in **screen pixels**, recomputed per zoom: each
-pin takes the nearest spot that is inside a Saudi region polygon (so coastal
-cities like Jeddah never spill into the sea) and at least one pin-width from
-every neighbour. Positions are cached per zoom level. Pins also scale down
-below zoom 6. See `spreadPins()` in `js/app.js`.
+Hospitals within ~15 km of each other (true geography) form a city group,
+computed once per data load. A seed hospital absorbs others near the seed
+itself, never near another member, so groups can't chain across a region.
+
+* **Zoom ≤ 7** — each group fans out around its centre, on land, a pin-width
+  apart.
+* **Zoom 8–10** — each pin slides linearly from its fan spot toward its real
+  coordinate.
+* **Zoom ≥ 11** — pins sit on their real coordinates. Only hospitals that
+  genuinely share a site are nudged apart, by about a pin-width (< 1 km at
+  the closest zoom).
+* Lone hospitals always sit exactly on their coordinate, island hospitals
+  included.
+
+Tune with `STACK_KM`, `FAN_UNTIL` and `TRUE_FROM` in `js/app.js`.
+
+**This is only as accurate as the sheet's Latitude/Longitude.** Many rows
+still carry a city-centre coordinate shared by several hospitals, and those
+cannot converge on a real location until the sheet has one.
 
 ## Deploying to GitHub Pages
 

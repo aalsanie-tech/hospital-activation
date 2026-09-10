@@ -250,50 +250,110 @@ function onLand(lat, lng) {
 
 function pinScale(z) { return z <= 5 ? 0.72 : (z < 8 ? 0.88 : 1); }
 
+/* Zoomed out, hospitals in the same city fan apart; zoomed in, they slide
+   to their real locations.
+
+   - City groups are formed once from TRUE geography: a seed hospital
+     absorbs others within STACK_KM of the seed itself (never of another
+     member), so groups can't chain across a region. Zoom-independent.
+   - At zoom <= FAN_UNTIL each group fans out around its centre on land, a
+     pin-width apart — the layout the team already uses.
+   - Between FAN_UNTIL and TRUE_FROM each pin slides linearly from its fan
+     spot to its real coordinate.
+   - At zoom >= TRUE_FROM pins sit on their real coordinates; only hospitals
+     that genuinely share a site get nudged apart, by about a pin-width.
+   - Lone hospitals always sit exactly on their coordinate (island
+     hospitals included — never dragged onto the mainland).
+   Cached per zoom level; groups recomputed when data reloads. */
+var STACK_KM = 15, FAN_UNTIL = 7, TRUE_FROM = 11;
+
+function buildStacks() {
+  var list = state.missions.slice().sort(function (a, b) {
+    return a.name.localeCompare(b.name, 'ar') || (a.id < b.id ? -1 : 1);
+  });
+  var stacks = [];
+  list.forEach(function (m) {
+    var here = L.latLng(m.lat, m.lng), best = null, bestD = Infinity;
+    for (var i = 0; i < stacks.length; i++) {
+      var d = here.distanceTo(stacks[i].seed);
+      if (d <= STACK_KM * 1000 && d < bestD) { best = stacks[i]; bestD = d; }
+    }
+    if (!best) { best = { seed: here, members: [] }; stacks.push(best); }
+    best.members.push(m);
+  });
+  stacks.forEach(function (s) {
+    var la = 0, lo = 0;
+    s.members.forEach(function (m) { la += m.lat; lo += m.lng; });
+    s.centre = [la / s.members.length, lo / s.members.length];
+  });
+  return stacks;
+}
+
 function spreadPins() {
   var map = state.map;
   if (!map || !state.missions.length) return false;
+  if (!state.stacks) state.stacks = buildStacks();
   var z = map.getZoom(), key = String(Math.round(z * 100) / 100);
   var cache = (state.spreadCache = state.spreadCache || {})[key];
 
   if (!cache) {
     cache = state.spreadCache[key] = {};
-    var sep = 22 * pinScale(z) * 0.95;          // centre-to-centre: pins just touch
-    var GOLDEN = Math.PI * (3 - Math.sqrt(5)), groups = {};
-    state.missions.forEach(function (m) {
-      var k = m.lat.toFixed(4) + ',' + m.lng.toFixed(4);
-      (groups[k] = groups[k] || []).push(m);
-    });
+    var sep = 22 * pinScale(z) * 0.95;
+    var GOLDEN = Math.PI * (3 - Math.sqrt(5));
+    var t = Math.max(0, Math.min(1, (z - FAN_UNTIL) / (TRUE_FROM - FAN_UNTIL)));
 
-    Object.keys(groups).forEach(function (k) {
-      var grp = groups[k];
-      if (grp.length === 1) { cache[grp[0].id] = [grp[0].lat, grp[0].lng]; return; }
-      grp.sort(function (a, b) { return (a.stackIndex || 0) - (b.stackIndex || 0); });
-
-      var A = map.project([grp[0].lat, grp[0].lng], z), placed = [];
-      grp.forEach(function (m, i) {
-        var chosen = null, fallback = null, fallbackGap = -1;
-        for (var ring = 0; ring <= 9 && !chosen; ring++) {
-          var r = sep * ring;
-          var n = ring === 0 ? 1 : Math.max(6, Math.round((2 * Math.PI * r) / sep));
-          for (var s = 0; s < n; s++) {
-            var ang = i * GOLDEN + s * (2 * Math.PI / n);
-            var P = L.point(A.x + Math.cos(ang) * r, A.y + Math.sin(ang) * r);
-            var ll = map.unproject(P, z);
-            if (!onLand(ll.lat, ll.lng)) continue;
-            var gap = Infinity;
-            for (var q = 0; q < placed.length; q++) {
-              var d = P.distanceTo(placed[q]);
-              if (d < gap) gap = d;
-            }
-            if (gap >= sep) { chosen = P; break; }
-            if (gap > fallbackGap) { fallbackGap = gap; fallback = P; }
+    /* nearest spot around C that is on land and clear of `placed` */
+    var search = function (C, order, maxRing, placed) {
+      var fallback = null, fallbackGap = -1;
+      for (var ring = 0; ring <= maxRing; ring++) {
+        var rad = sep * ring;
+        var n = ring === 0 ? 1 : Math.max(6, Math.round((2 * Math.PI * rad) / sep));
+        for (var s = 0; s < n; s++) {
+          var ang = order * GOLDEN + s * (2 * Math.PI / n);
+          var P = L.point(C.x + Math.cos(ang) * rad, C.y + Math.sin(ang) * rad);
+          var ll = map.unproject(P, z);
+          if (!onLand(ll.lat, ll.lng)) continue;
+          var gap = Infinity;
+          for (var q = 0; q < placed.length; q++) {
+            var d = P.distanceTo(placed[q]);
+            if (d < gap) gap = d;
           }
+          if (gap >= sep) return P;
+          if (gap > fallbackGap) { fallbackGap = gap; fallback = P; }
         }
-        var best = chosen || fallback || A;       // never off land if land exists nearby
-        placed.push(best);
-        var bll = map.unproject(best, z);
-        cache[m.id] = [bll.lat, bll.lng];
+      }
+      return fallback;
+    };
+
+    state.stacks.forEach(function (stack) {
+      var members = stack.members;
+      if (members.length === 1) {                       // lone: exact, always
+        cache[members[0].id] = [members[0].lat, members[0].lng];
+        return;
+      }
+      var A = map.project(stack.centre, z), fanned = [], final = [];
+      members.forEach(function (m, i) {
+        /* 1 — the fan spot (today's layout) */
+        var F = search(A, i, 9, fanned) || A;
+        fanned.push(F);
+        /* 2 — slide toward the true coordinate as zoom increases */
+        var T = map.project([m.lat, m.lng], z);
+        var P = t === 0 ? F : (t === 1 ? T : L.point(F.x + (T.x - F.x) * t, F.y + (T.y - F.y) * t));
+        if (t > 0 && t < 1) {
+          var pl = map.unproject(P, z);
+          if (!onLand(pl.lat, pl.lng)) P = t >= 0.5 ? T : F;
+        }
+        /* 3 — only if it now sits on a group-mate: nudge by a ring or two */
+        if (t > 0) {
+          var clash = false;
+          for (var q = 0; q < final.length; q++) {
+            if (P.distanceTo(final[q]) < sep * 0.9) { clash = true; break; }
+          }
+          if (clash) P = search(P, i, 3, final) || P;
+        }
+        final.push(P);
+        var ll = map.unproject(P, z);
+        cache[m.id] = [ll.lat, ll.lng];
       });
     });
   }
@@ -922,7 +982,7 @@ state.parseCSV = parseCSV;
 state.normalizeRows = normalizeRows;
 state.reload = function () { return loadData().then(function (d) {
   state.missions = d.missions; state.source = d.source; state.stamp = d.stamp;
-  state.spreadCache = {}; spreadPins();
+  state.spreadCache = {}; state.stacks = null; spreadPins();
   refresh(); return d.source;
 }); };
 
