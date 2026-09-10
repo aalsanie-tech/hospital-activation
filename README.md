@@ -151,6 +151,45 @@ is no token on the endpoint. If that matters, add a shared-secret check in
 the script and send it from `config.js` — a deterrent, not authentication —
 or move writes behind something that can actually authenticate.
 
+## The map's look
+
+Four presets live in [`js/themes.js`](js/themes.js): `midnight`, `twilight`,
+`desert`, `tactical`. Each one sets the page palette (CSS, via
+`<html data-preset>`) and the terrain + fog palette (JS, since those colours
+are interpolated per cluster).
+
+Set the default in `PRESET` ([`js/config.js`](js/config.js)), or preview any
+of them on the live site without a deploy:
+
+```
+…/hospital-activation/?preset=twilight
+```
+
+### Design-preview switches (localhost only)
+
+`?sim=half` and `?sim=full` paint deterministic stages over the real data so
+a half-won or fully-won map can be judged, and `?nogate=1` skips the
+passcode. All three are ignored unless the hostname is localhost, so they
+cannot reach the field build. They only affect rendering — nothing is
+written anywhere.
+
+To regenerate the comparison screenshots:
+
+```bash
+python3 -m http.server 8123          # from the repo root
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
+  --force-device-scale-factor=2 --window-size=460,900 --virtual-time-budget=15000 \
+  --screenshot=out.png "http://127.0.0.1:8123/index.html?nogate=1&sim=half&preset=twilight"
+```
+
+### Pin spacing
+
+Hospitals in a city share one coordinate in the sheet. Each stack is spread
+on a golden-angle spiral measured in **screen pixels** and recomputed on
+every zoom, so neighbours stay neighbours at city zoom without stacking into
+one dot when you pull back. Pins also scale down below zoom 6. Tune with
+`spreadRadius()` in `js/app.js`.
+
 ## Deploying to GitHub Pages
 
 ```bash

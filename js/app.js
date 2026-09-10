@@ -76,11 +76,21 @@ function resolveCluster(raw) {
 }
 
 /* exposed for debugging/support: window.TM.map, window.TM.missions … */
+function activePreset() {
+  var q = new URLSearchParams(location.search).get('preset');
+  var key = q || CFG.PRESET || 'midnight';
+  var P = window.TM_PRESETS || {};
+  if (!P[key]) key = 'midnight';
+  document.documentElement.setAttribute('data-preset', key);
+  return P[key] || {};
+}
+
 var state = window.TM = {
   missions: [], source: 'snapshot', stamp: '', lang: 'en',
   stageFilter: null, clusterFilter: null, preview: false,
   markers: {}, map: null, fog: null, regionLayer: null, selected: null,
-  products: [], warehouses: [], supplyLayers: [], showSupply: true
+  products: [], warehouses: [], supplyLayers: [], showSupply: true,
+  preset: null, spread: {}
 };
 
 /* ════════════════════════════════════════ CSV ═══ */
@@ -162,8 +172,11 @@ function normalizeRows(rows) {
   return decollide(out);
 }
 
-/* Every hospital in a city shares one centroid in the sheet, so pins would
-   stack into a single unclickable dot. Golden-angle spiral, deterministic. */
+/* Every hospital in a city shares one city-centre coordinate in the sheet.
+   Rather than a fixed offset in degrees — which overlaps when you zoom out
+   and flies apart when you zoom in — each stack gets a golden-angle spiral
+   measured in SCREEN PIXELS, recomputed on every zoom. They stay visibly
+   neighbours at any scale without sitting on top of each other. */
 function decollide(list) {
   var GOLDEN = Math.PI * (3 - Math.sqrt(5)), groups = {};
   list.forEach(function (m) {
@@ -175,13 +188,53 @@ function decollide(list) {
     grp.sort(function (a, b) { return a.name.localeCompare(b.name, 'ar'); });
     grp.forEach(function (m, i) {
       m.stacked = n > 1;
-      if (n === 1) { m.dlat = m.lat; m.dlng = m.lng; return; }
-      var rad = 0.014 + 0.011 * Math.floor(i / 8), ang = i * GOLDEN;
-      m.dlat = m.lat + rad * Math.sin(ang);
-      m.dlng = m.lng + rad * Math.cos(ang) / Math.max(0.2, Math.cos(m.lat * Math.PI / 180));
+      m.stackIndex = i;
+      m.stackSize = n;
+      m.dlat = m.lat;                 // replaced by spreadPins() once mapped
+      m.dlng = m.lng;
+      if (n > 1) {
+        var ring = Math.floor(i / 8), ang = i * GOLDEN;
+        m.spreadDir = [Math.cos(ang), Math.sin(ang)];
+        m.spreadRing = ring;
+      }
     });
   });
   return list;
+}
+
+/* pixel radius of the first ring at this zoom — tighter when zoomed out so a
+   city reads as one cluster, wider up close where there is room */
+function spreadRadius(z) {
+  return Math.max(13, Math.min(34, 13 + (z - 4) * 3.4));
+}
+
+function spreadPins() {
+  var map = state.map;
+  if (!map) return false;
+  var z = map.getZoom(), r0 = spreadRadius(z), step = r0 * 0.86, moved = false;
+  state.missions.forEach(function (m) {
+    if (!m.stacked) {
+      if (m.dlat !== m.lat || m.dlng !== m.lng) { m.dlat = m.lat; m.dlng = m.lng; moved = true; }
+      return;
+    }
+    var r = r0 + step * m.spreadRing;
+    var pt = map.project([m.lat, m.lng], z)
+      .add(L.point(m.spreadDir[0] * r, m.spreadDir[1] * r));
+    var ll = map.unproject(pt, z);
+    if (ll.lat !== m.dlat || ll.lng !== m.dlng) {
+      m.dlat = ll.lat; m.dlng = ll.lng; moved = true;
+    }
+  });
+  return moved;
+}
+
+/* keep pins from swallowing the map when zoomed out */
+function applyZoomScale() {
+  var z = state.map.getZoom();
+  var el = state.map.getContainer();
+  el.classList.toggle('z-far', z <= 5);
+  el.classList.toggle('z-mid', z > 5 && z < 8);
+  el.classList.toggle('z-near', z >= 8);
 }
 
 /* ════════════════════════════════════ loading ═══ */
@@ -218,7 +271,18 @@ function loadData() {
 }
 
 /* ════════════════════════════════════ stats ═══ */
-function stageOf(m) { return state.preview ? 4 : m.stage; }
+/* Preview stages for design review. state.preview = 4 shows full conquest;
+   state.sim spreads deterministic stages so a half-won map can be judged.
+   Never writes anywhere and never leaves localhost (see boot()). */
+function stageOf(m) {
+  if (state.preview) return 4;
+  if (state.sim) {
+    var h = 0, str = m.id + m.name;
+    for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) & 0x7fffffff;
+    return [0, 0, 1, 1, 2, 2, 3, 3, 4, 4][h % 10];   /* averages 2.0 → ~50% */
+  }
+  return m.stage;
+}
 
 function stats(list) {
   var s = { total: list.length, sum: 0, byStage: [0, 0, 0, 0, 0], clusters: {}, regions: {} };
@@ -265,6 +329,16 @@ function initMap() {
   map.getPane('fogPane').style.pointerEvents = 'none';
   map.getPane('regions').style.pointerEvents = 'auto';
   L.control.zoom({ position: 'bottomright' }).addTo(map);
+  map.on('zoomend', function () {
+    applyZoomScale();
+    if (spreadPins()) {
+      Object.keys(state.markers).forEach(function (id) {
+        var m = state.missions.filter(function (x) { return x.id === id; })[0];
+        if (m) state.markers[id].setLatLng([m.dlat, m.dlng]);
+      });
+      updateFog(stats(state.missions));
+    }
+  });
   L.control.attribution({ position: 'bottomleft', prefix: false })
     .addAttribution('Leaflet · boundaries: geoBoundaries ADM1').addTo(map);
   state.map = map;
@@ -272,15 +346,17 @@ function initMap() {
 }
 
 function terrainStyle(pct, inTerritory) {
+  var P = state.preset || {};
   if (!inTerritory) {
-    return { color: '#3a5573', weight: 1.1, opacity: 0.8, fillColor: '#1a2532',
+    return { color: P.outLine || '#3a5573', weight: 1.1, opacity: 0.8,
+             fillColor: P.outFill || '#1a2532',
              fillOpacity: 0.95, dashArray: '3 5', className: 'region-out' };
   }
   /* dark bronze-slate → vivid conquered green */
-  var stops = [
+  var stops = (P.terrain || [
     [0.00, [32, 47, 63]], [0.25, [34, 98, 86]],
     [0.55, [36, 152, 98]], [0.80, [52, 210, 118]], [1.00, [86, 255, 162]]
-  ], i, a, b, t, c = stops[stops.length - 1][1];
+  ]), i, a, b, t, c = stops[stops.length - 1][1];
   for (i = 0; i < stops.length - 1; i++) {
     if (pct <= stops[i + 1][0]) {
       a = stops[i]; b = stops[i + 1];
@@ -291,7 +367,8 @@ function terrainStyle(pct, inTerritory) {
   }
   var full = pct >= 0.999;
   return {
-    color: full ? '#8fffc6' : 'rgba(118,214,164,' + (0.55 + pct * 0.4) + ')',
+    color: full ? (P.lineFull || '#8fffc6')
+                : (P.line || 'rgba(118,214,164,') + (0.55 + pct * 0.4) + ')',
     weight: full ? 2.4 : 1.5,
     fillColor: 'rgb(' + c.join(',') + ')',
     fillOpacity: 0.92,
@@ -325,12 +402,13 @@ function pinIcon(m, st) {
     className: 'pin-wrap',
     html: '<div class="pin stage-' + stage + (m.stacked ? ' pin-stacked' : '') + '">' +
             '<span class="pin-halo"></span>' +
-            '<span class="pin-core"></span>' +
-            (stage === 0 ? '<span class="pin-lock">🔒</span>' : '') +
+            (stage === 0
+              ? '<span class="pin-lockdisc"></span><span class="pin-lock">🔒</span>'
+              : '<span class="pin-core"></span>') +
             star +
           '</div>',
-    iconSize: [stage === 4 ? 30 : 22, stage === 4 ? 30 : 22],
-    iconAnchor: [stage === 4 ? 15 : 11, stage === 4 ? 15 : 11]
+    iconSize: [stage === 4 ? 30 : 24, stage === 4 ? 30 : 24],
+    iconAnchor: [stage === 4 ? 15 : 12, stage === 4 ? 15 : 12]
   });
 }
 
@@ -393,9 +471,11 @@ function updateFog(st) {
     });
   }
   if (!state.fog) {
+    var P = state.preset || {};
     state.fog = L.fogLayer({
       pane: 'fogPane',
-      opacity: CFG.FOG_OPACITY,
+      opacity: (P.fog && P.fog.opacity != null) ? P.fog.opacity : CFG.FOG_OPACITY,
+      tint: P.fog && P.fog.color,
       radiusKm: CFG.FOG_RADIUS_KM
     }).addTo(state.map);
   }
@@ -635,6 +715,7 @@ function boot() {
     state.showSupply = pref === null ? (CFG.SHOW_SUPPLY_DEFAULT !== false) : pref === '1';
   } catch (e) { state.showSupply = CFG.SHOW_SUPPLY_DEFAULT !== false; }
   applyLang();
+  state.preset = activePreset();
   initMap();
 
   $('#btn-clusters').addEventListener('click', openDrawer);
@@ -677,8 +758,12 @@ function boot() {
       state.source = d.source;
       state.stamp = d.stamp;
       state.geo = res[1];
+      spreadPins();
+      applyZoomScale();
       refresh();
       if (!applyDeepLink()) frameTerritory();
+      spreadPins();
+      renderPins();
       installPreviewToggle();
       whReady.then(function () {
         installSupplyToggle();
@@ -1233,7 +1318,18 @@ function startApp() {
   boot();
 }
 
+/* Design-preview switches. Localhost only, so they can never reach the
+   field build: ?sim=half | full and ?nogate=1. They only affect rendering. */
+function applyDevSwitches() {
+  if (!/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return;
+  var qs = new URLSearchParams(location.search);
+  if (qs.get('sim') === 'half') state.sim = true;
+  if (qs.get('sim') === 'full') state.preview = true;
+  if (qs.get('nogate') === '1') CFG.GATE_ENABLED = false;
+}
+
 function initGate() {
+  applyDevSwitches();
   if (!CFG.GATE_ENABLED) return startApp();
   var ok = false;
   try { ok = localStorage.getItem('tm_auth') === CFG.PASSCODE_SHA256; } catch (e) {}

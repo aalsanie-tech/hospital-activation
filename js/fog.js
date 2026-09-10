@@ -7,6 +7,7 @@ L.FogLayer = L.Layer.extend({
     pane: 'fog',
     padding: 0.35,      // extra canvas around the viewport, as a fraction
     opacity: 0.9,
+    tint: null,                       // [r,g,b] base colour of the fog
     radiusKm: { 1: 26, 2: 42, 3: 62, 4: 95 },
     minRadiusPx: 16,
     maxRadiusPx: 520
@@ -130,10 +131,12 @@ L.FogLayer = L.Layer.extend({
     ctx.clearRect(0, 0, w, h);
 
     /* 1 — the fog itself: deep blue-black, slightly lighter at the edges */
+    var tint = o.tint || [5, 9, 15];
+    var dark = [Math.max(0, tint[0] - 4), Math.max(0, tint[1] - 6), Math.max(0, tint[2] - 8)];
     var g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.15,
                                      w / 2, h / 2, Math.max(w, h) * 0.75);
-    g.addColorStop(0, 'rgba(5,9,15,' + (o.opacity - 0.06) + ')');
-    g.addColorStop(1, 'rgba(2,4,8,' + Math.min(1, o.opacity + 0.06) + ')');
+    g.addColorStop(0, 'rgba(' + tint.join(',') + ',' + (o.opacity - 0.06) + ')');
+    g.addColorStop(1, 'rgba(' + dark.join(',') + ',' + Math.min(1, o.opacity + 0.06) + ')');
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
