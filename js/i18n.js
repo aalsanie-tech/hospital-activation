@@ -42,7 +42,15 @@ window.TM_I18N = {
     warehouses: 'Nupco warehouses', custody: 'أمين العهدة', whContactShort: 'Contact',
     whContact: 'Contact Name', whContactPhone: 'Contact Phone',
     whCustody: 'أمين العهدة Name', whCustodyPhone: 'أمين العهدة Phone',
-    fNameEdit: 'Hospital Name'
+    fNameEdit: 'Hospital Name',
+    fLocation: 'Location', useMyLocation: 'Set to my location', locating: 'Locating…',
+    useAnyway: "Yes, I'm at the hospital",
+    gpsSet: 'Location captured (±{m} m) — saved when you tap Save',
+    gpsWeak: 'GPS signal too weak (±{m} m) — step outside and try again',
+    gpsFar: "You're {km} km from this hospital's listed location. Tap again only if you are at the hospital.",
+    gpsDenied: 'Location permission is off — allow it for this site in your phone settings',
+    gpsFailed: 'Could not get a location — try again',
+    gpsUnsupported: "This browser can't share your location"
   },
   ar: {
     dir: 'rtl', lang: 'ar',
@@ -78,6 +86,14 @@ window.TM_I18N = {
     warehouses: 'مستودعات نبكو', custody: 'أمين العهدة', whContactShort: 'جهة الاتصال',
     whContact: 'اسم جهة الاتصال', whContactPhone: 'جوال جهة الاتصال',
     whCustody: 'اسم أمين العهدة', whCustodyPhone: 'جوال أمين العهدة',
-    fNameEdit: 'اسم المستشفى'
+    fNameEdit: 'اسم المستشفى',
+    fLocation: 'الموقع', useMyLocation: 'استخدم موقعي الحالي', locating: 'جارٍ تحديد الموقع…',
+    useAnyway: 'نعم، أنا في المستشفى',
+    gpsSet: 'تم تحديد الموقع (±{m} م) — يُحفظ عند الضغط على حفظ',
+    gpsWeak: 'إشارة الموقع ضعيفة (±{m} م) — اخرج إلى مكان مفتوح وحاول مجددًا',
+    gpsFar: 'أنت على بعد {km} كم من موقع المستشفى المسجل. اضغط مرة أخرى فقط إذا كنت في المستشفى.',
+    gpsDenied: 'إذن الموقع مغلق — فعّله لهذا الموقع من إعدادات الجوال',
+    gpsFailed: 'تعذّر تحديد الموقع — حاول مرة أخرى',
+    gpsUnsupported: 'هذا المتصفح لا يدعم مشاركة الموقع'
   }
 };

@@ -136,6 +136,23 @@ goes alongside it as `hospital_name_edit`. It is only sent when it actually
 changed, and never blank. After a successful rename the map uses the new
 name as the key for the next save.
 
+### Setting a hospital's location from the field
+
+The Update form shows the hospital's current coordinates and a
+**📍 Set to my location** button. Standing at the hospital, one tap records
+the phone's GPS fix; it is sent as `latitude` / `longitude` alongside
+`hospital_name` on Save, and the pin moves immediately.
+
+* Readings less accurate than ±1 km are refused ("step outside and try again").
+* A fix more than 60 km from the listed location needs a second, explicit
+  tap ("Yes, I'm at the hospital"), so a tap from the office can't move a
+  hospital across the region.
+* Nothing is sent unless the button was used.
+
+Tune with `GPS_MAX_ACCURACY_M` and `GPS_FAR_KM` in `js/app.js`. The browser
+asks for location permission the first time; GitHub Pages is HTTPS, which
+phones require for GPS.
+
 ### Editing a Nupco warehouse
 
 Tap a depot → **Update** → Contact Name, Contact Phone, أمين العهدة Name,

@@ -638,3 +638,17 @@ select.in{
     linear-gradient(90deg,rgba(220,200,150,.06) 1px,transparent 1px) 0 0/48px 48px,
     radial-gradient(1200px 760px at 50% 40%,#5a5040 0%,#463e31 45%,#302a21 100%);
 }
+
+/* ═══ GPS LOCATION CAPTURE ═══════════════════════════════════════ */
+.loc-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.loc-now{
+  flex:1; min-width:140px; font-family:ui-monospace,Menlo,monospace; font-size:12.5px;
+  color:var(--ink-dim); padding:10px 12px; border-radius:11px;
+  background:#050b13; border:1px solid #1e3350;
+}
+.loc-set .loc-now{color:var(--active);border-color:#22ff8866;background:#0b1d16}
+.loc-btn{flex:none;cursor:pointer;padding:10px 14px;font-size:13px}
+.loc-msg{margin:7px 0 0;font-size:12px;line-height:1.4}
+.loc-ok{color:var(--active)}
+.loc-warn{color:var(--visited)}
+.loc-err{color:#ff9d9d}

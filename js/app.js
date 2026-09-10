@@ -1116,6 +1116,12 @@ function openEditForm(m) {
       '</div>' +
       '<div class="fld"><label class="fld-k" for="f-name">' + esc(t('fNameEdit')) + '</label>' +
         '<input class="in" id="f-name" data-name="nameEdit" type="text" dir="auto" value="' + esc(m.name) + '"></div>' +
+      '<div class="fld" id="loc-fld"><label class="fld-k">' + esc(t('fLocation')) + '</label>' +
+        '<div class="loc-row"><span class="loc-now" id="loc-now" dir="ltr">' +
+          m.lat.toFixed(5) + ', ' + m.lng.toFixed(5) + '</span>' +
+          '<button type="button" class="act loc-btn" id="loc-btn">📍 ' + esc(t('useMyLocation')) + '</button></div>' +
+        '<p class="loc-msg" id="loc-msg" hidden></p>' +
+        '<input type="hidden" data-name="gpsLat"><input type="hidden" data-name="gpsLng"></div>' +
       '<div class="fld"><label class="fld-k" for="f-mgr">' + esc(t('fManager')) + '</label>' +
         '<input class="in" id="f-mgr" data-name="manager" type="text" value="' + esc(m.manager) + '"></div>' +
       '<div class="fld"><label class="fld-k" for="f-phone">' + esc(t('fPhone')) + '</label>' +
@@ -1148,6 +1154,7 @@ function openEditForm(m) {
     '</form>';
 
   var form = $('#edit-form');
+  $('#loc-btn').addEventListener('click', function () { captureLocation(m, form); });
 
   var syncSerial = function () {
     var g = form.querySelector('.tri[data-name="incubator"] .tri-b.on');
@@ -1176,6 +1183,59 @@ function openEditForm(m) {
   $('#edit-cancel').addEventListener('click', function () { selectMission(m); });
   form.addEventListener('submit', function (e) { e.preventDefault(); saveEdit(m, form); });
   $('#panel').scrollTop = 0;
+}
+
+/* One tap while standing at the hospital records the phone's GPS fix.
+   Guards: readings worse than ±1 km are refused, and a fix more than 60 km
+   from the listed location needs a second, explicit tap — a mis-tap from the
+   office must not move a hospital across the region. */
+var GPS_MAX_ACCURACY_M = 1000, GPS_FAR_KM = 60;
+
+function captureLocation(m, form) {
+  var btn = $('#loc-btn'), msg = $('#loc-msg');
+  var say = function (text, kind) {
+    msg.textContent = text; msg.className = 'loc-msg loc-' + kind; msg.hidden = false;
+  };
+  var idle = function (label) {
+    btn.disabled = false;
+    btn.innerHTML = '📍 ' + esc(label || t('useMyLocation'));
+  };
+  var accept = function (lat, lng, acc) {
+    form.querySelector('[data-name="gpsLat"]').value = lat.toFixed(6);
+    form.querySelector('[data-name="gpsLng"]').value = lng.toFixed(6);
+    $('#loc-now').textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
+    $('#loc-fld').classList.add('loc-set');
+    delete form.dataset.pendingLoc;
+    say(t('gpsSet').replace('{m}', acc), 'ok');
+    idle();
+  };
+
+  /* second tap after a "you're far away" warning */
+  if (form.dataset.pendingLoc) {
+    var p = form.dataset.pendingLoc.split(',');
+    accept(+p[0], +p[1], +p[2]);
+    return;
+  }
+  if (!navigator.geolocation) { say(t('gpsUnsupported'), 'err'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('locating'));
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    var lat = pos.coords.latitude, lng = pos.coords.longitude;
+    var acc = Math.round(pos.coords.accuracy || 0);
+    if (acc > GPS_MAX_ACCURACY_M) { idle(); say(t('gpsWeak').replace('{m}', acc), 'err'); return; }
+    var km = L.latLng(m.lat, m.lng).distanceTo([lat, lng]) / 1000;
+    if (km > GPS_FAR_KM) {
+      form.dataset.pendingLoc = lat + ',' + lng + ',' + acc;
+      idle(t('useAnyway'));
+      say(t('gpsFar').replace('{km}', Math.round(km)), 'warn');
+      return;
+    }
+    accept(lat, lng, acc);
+  }, function (err) {
+    idle();
+    say(err && err.code === 1 ? t('gpsDenied') : t('gpsFailed'), 'err');
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 }
 
 function collectEdit(form) {
@@ -1211,6 +1271,9 @@ function collectEdit(form) {
      the agent actually changed it (and never blank a hospital's name) */
   var renamed = val('nameEdit');
   if (renamed && renamed !== form.dataset.orig) u.hospital_name_edit = renamed;
+
+  var gLat = val('gpsLat'), gLng = val('gpsLng');
+  if (gLat && gLng) { u.latitude = gLat; u.longitude = gLng; }
 
   if (tri('informed')) u.informed = tri('informed');
   if (tri('dosing')) u.dosing_system = tri('dosing');
@@ -1248,6 +1311,11 @@ function saveEdit(m, form) {
     m.nextStep = fields.next_step;
     m.shortage = fields.shortage_items;
     if (fields.hospital_name_edit) m.name = fields.hospital_name_edit;   // it is the lookup key next time
+    if (fields.latitude && fields.longitude) {
+      m.lat = +fields.latitude; m.lng = +fields.longitude;
+      state.stacks = null; state.spreadCache = {};                        // regroup around the new spot
+      spreadPins();
+    }
     if (fields.informed) m.informed = fields.informed;
     if (fields.dosing_system) m.dosing = fields.dosing_system;
     if (fields.has_incubator) {
