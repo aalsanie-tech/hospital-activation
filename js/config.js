@@ -60,7 +60,7 @@ window.TM_CONFIG = {
      tactical-steel | tactical-sand | midnight | twilight | desert.
      Any of them can be previewed live without editing this file by adding
      ?preset=twilight to the URL.                                         */
-  PRESET: 'tactical',
+  PRESET: 'tactical-bright',
 
   /* ── Map ───────────────────────────────────────────────────────────────*/
   CENTER: [23.5, 42.6],

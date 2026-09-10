@@ -57,13 +57,19 @@ window.TM_PRESETS = {
   /* brighter table, thinner fog, lighter unconquered ground */
   'tactical-bright': {
     label: 'Tactical · Bright',
-    fog: { color: [48, 66, 88], opacity: 0.52 },
+    /* fog covers the kingdom only, so the background stays a clean blue and
+       Saudi Arabia reads as a grey slab lifted off it */
+    fog: { color: [74, 77, 82], opacity: 0.46 },
+    fogLandOnly: true,
     terrain: [
-      [0.00, [120, 140, 162]], [0.25, [104, 172, 166]],
-      [0.55, [86, 204, 146]], [0.80, [104, 234, 152]], [1.00, [170, 255, 200]]
+      [0.00, [150, 154, 160]], [0.25, [126, 168, 156]],
+      [0.55, [96, 206, 150]], [0.80, [112, 236, 158]], [1.00, [176, 255, 204]]
     ],
-    outFill: '#56657a', outLine: '#a3b8cf',
-    line: 'rgba(214,236,224,',    lineFull: '#e0fff0'
+    outFill: '#80848b', outLine: '#ffffff',
+    /* regions outside your territory (Riyadh, Qassim, Eastern): bold white
+       dashes, drawn ABOVE the fog so it cannot dim them */
+    outBorder: { color: '#ffffff', weight: 2.6, opacity: 0.95, dash: '8 6', aboveFog: true },
+    line: 'rgba(232,240,236,',    lineFull: '#e8fff2'
   },
 
   /* same brightness, more contrast: darker table, crisper edges, richer greens */

@@ -608,12 +608,12 @@ select.in{
 :root[data-preset^="tactical"] .region-conquered{filter:drop-shadow(0 4px 10px rgba(0,0,0,.45))}
 
 /* ═══ TACTICAL VARIATIONS ═══════════════════════════════════════ */
-:root[data-preset="tactical-bright"]{--void:#2a384a;--ink:#f6faff;--line:#5c7594;--ink-mute:#a9bdd4}
+:root[data-preset="tactical-bright"]{--void:#1d3a63;--ink:#f6faff;--line:#4f78a8;--ink-mute:#b0c6de}
 :root[data-preset="tactical-bright"] body::before{
   background:
-    linear-gradient(rgba(150,190,230,.08) 1px,transparent 1px) 0 0/48px 48px,
-    linear-gradient(90deg,rgba(150,190,230,.08) 1px,transparent 1px) 0 0/48px 48px,
-    radial-gradient(1200px 780px at 50% 40%,#4a6380 0%,#384d66 45%,#28384b 100%);
+    linear-gradient(rgba(160,200,245,.09) 1px,transparent 1px) 0 0/48px 48px,
+    linear-gradient(90deg,rgba(160,200,245,.09) 1px,transparent 1px) 0 0/48px 48px,
+    radial-gradient(1200px 780px at 50% 40%,#2f62a0 0%,#244f88 42%,#173766 100%);
 }
 :root[data-preset="tactical-sharp"]{--void:#141d29;--ink:#ffffff;--line:#5a7596;--ink-mute:#a0b6cf}
 :root[data-preset="tactical-sharp"] body::before{

@@ -405,6 +405,8 @@ function initMap() {
   map.createPane('lockedPins').style.zIndex = 420;   // under the fog
   map.createPane('fogPane').style.zIndex = 450;
   map.createPane('supply').style.zIndex = 470;
+  map.createPane('borders').style.zIndex = 455;      // just above the fog
+  map.getPane('borders').style.pointerEvents = 'none';
   map.getPane('fogPane').style.pointerEvents = 'none';
   map.getPane('regions').style.pointerEvents = 'auto';
   L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -427,9 +429,12 @@ function initMap() {
 function terrainStyle(pct, inTerritory) {
   var P = state.preset || {};
   if (!inTerritory) {
-    return { color: P.outLine || '#3a5573', weight: 1.1, opacity: 0.8,
+    var ob = P.outBorder;
+    return { stroke: !(ob && ob.aboveFog),          // drawn in the borders pane instead
+             color: (ob && ob.color) || P.outLine || '#3a5573',
+             weight: ob ? ob.weight : 1.1, opacity: ob ? ob.opacity : 0.8,
              fillColor: P.outFill || '#1a2532',
-             fillOpacity: 0.95, dashArray: '3 5', className: 'region-out' };
+             fillOpacity: 0.95, dashArray: ob ? ob.dash : '3 5', className: 'region-out' };
   }
   /* dark bronze-slate → vivid conquered green */
   var stops = (P.terrain || [
@@ -469,6 +474,32 @@ function renderRegions(geo, st) {
       layer.on('click', function () { showRegionToast(f.properties, r); });
     }
   }).addTo(state.map);
+
+  /* regions outside the territory get their dashed outline above the fog */
+  if (state.borderLayer) { state.map.removeLayer(state.borderLayer); state.borderLayer = null; }
+  var ob = (state.preset || {}).outBorder;
+  if (ob && ob.aboveFog) {
+    state.borderLayer = L.geoJSON(geo, {
+      pane: 'borders', interactive: false,
+      filter: function (f) { return !(f.properties.inTerritory && st.regions[f.properties.iso]); },
+      style: function () {
+        return { color: ob.color, weight: ob.weight, opacity: ob.opacity,
+                 dashArray: ob.dash, fill: false, lineCap: 'round', className: 'region-out-border' };
+      }
+    }).addTo(state.map);
+  }
+}
+
+function landRings() {
+  if (state.landRingsCache) return state.landRingsCache;
+  var out = [];
+  ((state.geo && state.geo.features) || []).forEach(function (f) {
+    var g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+    polys.forEach(function (poly) {
+      if (poly[0]) out.push(poly[0].map(function (c) { return [c[1], c[0]]; }));
+    });
+  });
+  return (state.landRingsCache = out);
 }
 
 /* ════════════════════════════════════ pins ═══ */
@@ -555,8 +586,10 @@ function updateFog(st) {
       pane: 'fogPane',
       opacity: (P.fog && P.fog.opacity != null) ? P.fog.opacity : CFG.FOG_OPACITY,
       tint: P.fog && P.fog.color,
+      landOnly: !!P.fogLandOnly,
       radiusKm: CFG.FOG_RADIUS_KM
     }).addTo(state.map);
+    if (P.fogLandOnly) state.fog.setLand(landRings());
   }
   state.fog.setPoints(pts);
   state.fog.setRegions(regs);

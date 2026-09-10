@@ -8,6 +8,7 @@ L.FogLayer = L.Layer.extend({
     padding: 0.35,      // extra canvas around the viewport, as a fraction
     opacity: 0.9,
     tint: null,                       // [r,g,b] base colour of the fog
+    landOnly: false,                  // clip the fog to the land polygons
     radiusKm: { 1: 26, 2: 42, 3: 62, 4: 95 },
     minRadiusPx: 16,
     maxRadiusPx: 520
@@ -30,6 +31,12 @@ L.FogLayer = L.Layer.extend({
      [{rings:[[[lat,lng],...],...], clear:0..1, full:bool}]              */
   setRegions: function (regions) {
     this._regions = regions || [];
+    return this._redraw();
+  },
+
+  /* outer rings of every land polygon, as [lat,lng] — used by landOnly */
+  setLand: function (rings) {
+    this._land = rings || [];
     return this._redraw();
   },
 
@@ -138,11 +145,28 @@ L.FogLayer = L.Layer.extend({
     g.addColorStop(0, 'rgba(' + tint.join(',') + ',' + (o.opacity - 0.06) + ')');
     g.addColorStop(1, 'rgba(' + dark.join(',') + ',' + Math.min(1, o.opacity + 0.06) + ')');
     ctx.globalCompositeOperation = 'source-over';
+    /* one path for all land rings: a nonzero clip unions them without seams
+       along shared region borders */
+    var clipped = !!(o.landOnly && this._land && this._land.length);
+    if (clipped) {
+      ctx.save();
+      ctx.beginPath();
+      for (var li = 0; li < this._land.length; li++) {
+        var lring = this._land[li];
+        for (var lj = 0; lj < lring.length; lj++) {
+          var lp = this._map.latLngToContainerPoint(lring[lj]).add(pad);
+          if (lj === 0) ctx.moveTo(lp.x, lp.y); else ctx.lineTo(lp.x, lp.y);
+        }
+        ctx.closePath();
+      }
+      ctx.clip('nonzero');
+    }
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
 
     var pat = ctx.createPattern(this._noiseTile(), 'repeat');
     if (pat) { ctx.fillStyle = pat; ctx.fillRect(0, 0, w, h); }
+    if (clipped) ctx.restore();
 
     /* 2a — lift the fog off provinces as their clusters get activated */
     var regs = this._regions, ri;
