@@ -50,5 +50,55 @@ window.TM_PRESETS = {
     ],
     outFill: '#3d4a5c', outLine: '#8199b4',
     line: 'rgba(190,225,205,',    lineFull: '#c9ffe4'
+  },
+
+  /* ── Tactical variations ─────────────────────────────────────────── */
+
+  /* brighter table, thinner fog, lighter unconquered ground */
+  'tactical-bright': {
+    label: 'Tactical · Bright',
+    fog: { color: [48, 66, 88], opacity: 0.52 },
+    terrain: [
+      [0.00, [120, 140, 162]], [0.25, [104, 172, 166]],
+      [0.55, [86, 204, 146]], [0.80, [104, 234, 152]], [1.00, [170, 255, 200]]
+    ],
+    outFill: '#56657a', outLine: '#a3b8cf',
+    line: 'rgba(214,236,224,',    lineFull: '#e0fff0'
+  },
+
+  /* same brightness, more contrast: darker table, crisper edges, richer greens */
+  'tactical-sharp': {
+    label: 'Tactical · Sharp',
+    fog: { color: [20, 30, 44], opacity: 0.7 },
+    terrain: [
+      [0.00, [88, 106, 128]], [0.25, [60, 150, 150]],
+      [0.55, [40, 196, 120]], [0.80, [48, 236, 128]], [1.00, [110, 255, 160]]
+    ],
+    outFill: '#2c3748', outLine: '#9fb6d0',
+    line: 'rgba(225,245,235,',    lineFull: '#ffffff'
+  },
+
+  /* neutral steel instead of blue — cleaner, more "instrument" */
+  'tactical-steel': {
+    label: 'Tactical · Steel',
+    fog: { color: [36, 40, 46], opacity: 0.62 },
+    terrain: [
+      [0.00, [110, 116, 124]], [0.25, [96, 150, 138]],
+      [0.55, [80, 186, 124]], [0.80, [94, 222, 134]], [1.00, [156, 255, 182]]
+    ],
+    outFill: '#454a52', outLine: '#8f98a3',
+    line: 'rgba(205,222,212,',    lineFull: '#d8ffe8'
+  },
+
+  /* khaki field-map warmth on the same lit table */
+  'tactical-sand': {
+    label: 'Tactical · Sand',
+    fog: { color: [52, 46, 36], opacity: 0.6 },
+    terrain: [
+      [0.00, [138, 126, 100]], [0.25, [116, 150, 108]],
+      [0.55, [88, 184, 110]], [0.80, [92, 220, 128]], [1.00, [160, 255, 176]]
+    ],
+    outFill: '#5a5140', outLine: '#b0a07e',
+    line: 'rgba(236,226,196,',    lineFull: '#f4ffd8'
   }
 };

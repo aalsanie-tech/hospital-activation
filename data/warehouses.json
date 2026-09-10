@@ -1,67 +1,81 @@
 {
  "warehouses": [
   {
-   "name": "Nupco Jeddah (Maersk)",
-   "city": "جدة",
-   "serves": "جدة 1, جدة 2, مكة, الطائف",
-   "lat": 21.45,
-   "lng": 39.13,
-   "contact": "",
-   "phone": ""
+   "Warehouse": "Nupco Jeddah (Maersk)",
+   "City": "جدة",
+   "Serves Clusters": "جدة 1, جدة 2, مكة, الطائف",
+   "Latitude": 21.45,
+   "Longitude": 39.13,
+   "Contact Name": "",
+   "Contact Phone": "",
+   "أمين العهدة - Phone": "",
+   "أمين العهدة - Name": ""
   },
   {
-   "name": "Nupco Sakaka",
-   "city": "سكاكا",
-   "serves": "تبوك, الجوف, الحدود الشمالية",
-   "lat": 29.9697,
-   "lng": 40.2064,
-   "contact": "",
-   "phone": ""
+   "Warehouse": "Nupco Sakaka",
+   "City": "سكاكا",
+   "Serves Clusters": "تبوك, الجوف, الحدود الشمالية",
+   "Latitude": 29.9697,
+   "Longitude": 40.2064,
+   "Contact Name": "",
+   "Contact Phone": "",
+   "أمين العهدة - Phone": "",
+   "أمين العهدة - Name": ""
   },
   {
-   "name": "Nupco Qassim",
-   "city": "القصيم",
-   "serves": "حائل",
-   "lat": 26.326,
-   "lng": 43.975,
-   "contact": "",
-   "phone": ""
+   "Warehouse": "Nupco Qassim",
+   "City": "القصيم",
+   "Serves Clusters": "حائل",
+   "Latitude": 26.326,
+   "Longitude": 43.975,
+   "Contact Name": "",
+   "Contact Phone": "",
+   "أمين العهدة - Phone": "",
+   "أمين العهدة - Name": ""
   },
   {
-   "name": "Nupco Baha",
-   "city": "الباحة",
-   "serves": "الباحة",
-   "lat": 20.0129,
-   "lng": 41.4677,
-   "contact": "",
-   "phone": ""
+   "Warehouse": "Nupco Baha",
+   "City": "الباحة",
+   "Serves Clusters": "الباحة",
+   "Latitude": 20.0129,
+   "Longitude": 41.4677,
+   "Contact Name": "",
+   "Contact Phone": "",
+   "أمين العهدة - Phone": "",
+   "أمين العهدة - Name": ""
   },
   {
-   "name": "Nupco Jazan",
-   "city": "جازان",
-   "serves": "جازان",
-   "lat": 16.8892,
-   "lng": 42.5611,
-   "contact": "",
-   "phone": ""
+   "Warehouse": "Nupco Jazan",
+   "City": "جازان",
+   "Serves Clusters": "جازان",
+   "Latitude": 16.8892,
+   "Longitude": 42.5611,
+   "Contact Name": "",
+   "Contact Phone": "",
+   "أمين العهدة - Phone": "",
+   "أمين العهدة - Name": ""
   },
   {
-   "name": "Nupco Aseer",
-   "city": "عسير",
-   "serves": "عسير, نجران",
-   "lat": 18.2164,
-   "lng": 42.5053,
-   "contact": "",
-   "phone": ""
+   "Warehouse": "Nupco Aseer",
+   "City": "عسير",
+   "Serves Clusters": "عسير, نجران",
+   "Latitude": 18.2164,
+   "Longitude": 42.5053,
+   "Contact Name": "",
+   "Contact Phone": "",
+   "أمين العهدة - Phone": "",
+   "أمين العهدة - Name": ""
   },
   {
-   "name": "Nupco Madinah",
-   "city": "المدينة",
-   "serves": "المدينة",
-   "lat": 24.4672,
-   "lng": 39.6112,
-   "contact": "",
-   "phone": ""
+   "Warehouse": "Nupco Madinah",
+   "City": "المدينة",
+   "Serves Clusters": "المدينة",
+   "Latitude": 24.4672,
+   "Longitude": 39.6112,
+   "Contact Name": "",
+   "Contact Phone": "",
+   "أمين العهدة - Phone": "",
+   "أمين العهدة - Name": ""
   }
  ]
 }

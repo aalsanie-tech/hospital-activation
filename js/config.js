@@ -56,10 +56,11 @@ window.TM_CONFIG = {
   ACTION_OPTIONS: ['None', 'Broken Device', 'Training Needed', 'Product Complaint', 'Urgent Follow-up'],
 
   /* ── Look ──────────────────────────────────────────────────────────────
-     Map preset: midnight | twilight | desert | tactical (see js/themes.js).
+     Map preset (see js/themes.js): tactical | tactical-bright | tactical-sharp |
+     tactical-steel | tactical-sand | midnight | twilight | desert.
      Any of them can be previewed live without editing this file by adding
      ?preset=twilight to the URL.                                         */
-  PRESET: 'midnight',
+  PRESET: 'tactical',
 
   /* ── Map ───────────────────────────────────────────────────────────────*/
   CENTER: [23.5, 42.6],

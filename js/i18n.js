@@ -38,7 +38,11 @@ window.TM_I18N = {
     stage2: 'Stage',
     supply: 'Supply network', warehouse: 'Nupco warehouse', serves: 'Supplies',
     depots: 'depots', away: 'away', showSupply: 'Show supply network',
-    hideSupply: 'Hide supply network'
+    hideSupply: 'Hide supply network',
+    warehouses: 'Nupco warehouses', custody: 'أمين العهدة', whContactShort: 'Contact',
+    whContact: 'Contact Name', whContactPhone: 'Contact Phone',
+    whCustody: 'أمين العهدة Name', whCustodyPhone: 'أمين العهدة Phone',
+    fNameEdit: 'Hospital Name'
   },
   ar: {
     dir: 'rtl', lang: 'ar',
@@ -70,6 +74,10 @@ window.TM_I18N = {
     stage2: 'المرحلة',
     supply: 'شبكة الإمداد', warehouse: 'مستودع نبكو', serves: 'يغذّي',
     depots: 'مستودعات', away: 'بعد', showSupply: 'عرض شبكة الإمداد',
-    hideSupply: 'إخفاء شبكة الإمداد'
+    hideSupply: 'إخفاء شبكة الإمداد',
+    warehouses: 'مستودعات نبكو', custody: 'أمين العهدة', whContactShort: 'جهة الاتصال',
+    whContact: 'اسم جهة الاتصال', whContactPhone: 'جوال جهة الاتصال',
+    whCustody: 'اسم أمين العهدة', whCustodyPhone: 'جوال أمين العهدة',
+    fNameEdit: 'اسم المستشفى'
   }
 };

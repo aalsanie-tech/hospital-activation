@@ -202,28 +202,107 @@ function decollide(list) {
   return list;
 }
 
-/* pixel radius of the first ring at this zoom — tighter when zoomed out so a
-   city reads as one cluster, wider up close where there is room */
-function spreadRadius(z) {
-  return Math.max(13, Math.min(34, 13 + (z - 4) * 3.4));
+/* ── land-aware spreading ─────────────────────────────────────────────────
+   Stacked hospitals are placed greedily around their shared city point, in
+   screen pixels, recomputed per zoom. Each candidate spot must be ON LAND
+   (inside a Saudi region polygon) and at least one pin-width from every
+   neighbour already placed. A fixed pixel offset alone threw Jeddah's
+   coastal hospitals into the Red Sea at low zoom, where a pixel is ~4.5 km. */
+function buildLandIndex() {
+  var out = [];
+  ((state.geo && state.geo.features) || []).forEach(function (f) {
+    var g = f.geometry, polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+    polys.forEach(function (poly) {
+      var outer = poly[0];
+      if (!outer || outer.length < 4) return;
+      var b = [Infinity, Infinity, -Infinity, -Infinity];
+      outer.forEach(function (c) {
+        if (c[0] < b[0]) b[0] = c[0]; if (c[1] < b[1]) b[1] = c[1];
+        if (c[0] > b[2]) b[2] = c[0]; if (c[1] > b[3]) b[3] = c[1];
+      });
+      out.push({ ring: outer, holes: poly.slice(1), bbox: b });
+    });
+  });
+  return out;
 }
+
+function inRing(x, y, ring) {
+  var inside = false;
+  for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+function onLand(lat, lng) {
+  var idx = state.landIndex || (state.landIndex = buildLandIndex());
+  if (!idx.length) return true;                 // no geometry yet: don't block
+  for (var i = 0; i < idx.length; i++) {
+    var p = idx[i], b = p.bbox;
+    if (lng < b[0] || lng > b[2] || lat < b[1] || lat > b[3]) continue;
+    if (!inRing(lng, lat, p.ring)) continue;
+    for (var h = 0; h < p.holes.length; h++) if (inRing(lng, lat, p.holes[h])) return false;
+    return true;
+  }
+  return false;
+}
+
+function pinScale(z) { return z <= 5 ? 0.72 : (z < 8 ? 0.88 : 1); }
 
 function spreadPins() {
   var map = state.map;
-  if (!map) return false;
-  var z = map.getZoom(), r0 = spreadRadius(z), step = r0 * 0.86, moved = false;
+  if (!map || !state.missions.length) return false;
+  var z = map.getZoom(), key = String(Math.round(z * 100) / 100);
+  var cache = (state.spreadCache = state.spreadCache || {})[key];
+
+  if (!cache) {
+    cache = state.spreadCache[key] = {};
+    var sep = 22 * pinScale(z) * 0.95;          // centre-to-centre: pins just touch
+    var GOLDEN = Math.PI * (3 - Math.sqrt(5)), groups = {};
+    state.missions.forEach(function (m) {
+      var k = m.lat.toFixed(4) + ',' + m.lng.toFixed(4);
+      (groups[k] = groups[k] || []).push(m);
+    });
+
+    Object.keys(groups).forEach(function (k) {
+      var grp = groups[k];
+      if (grp.length === 1) { cache[grp[0].id] = [grp[0].lat, grp[0].lng]; return; }
+      grp.sort(function (a, b) { return (a.stackIndex || 0) - (b.stackIndex || 0); });
+
+      var A = map.project([grp[0].lat, grp[0].lng], z), placed = [];
+      grp.forEach(function (m, i) {
+        var chosen = null, fallback = null, fallbackGap = -1;
+        for (var ring = 0; ring <= 9 && !chosen; ring++) {
+          var r = sep * ring;
+          var n = ring === 0 ? 1 : Math.max(6, Math.round((2 * Math.PI * r) / sep));
+          for (var s = 0; s < n; s++) {
+            var ang = i * GOLDEN + s * (2 * Math.PI / n);
+            var P = L.point(A.x + Math.cos(ang) * r, A.y + Math.sin(ang) * r);
+            var ll = map.unproject(P, z);
+            if (!onLand(ll.lat, ll.lng)) continue;
+            var gap = Infinity;
+            for (var q = 0; q < placed.length; q++) {
+              var d = P.distanceTo(placed[q]);
+              if (d < gap) gap = d;
+            }
+            if (gap >= sep) { chosen = P; break; }
+            if (gap > fallbackGap) { fallbackGap = gap; fallback = P; }
+          }
+        }
+        var best = chosen || fallback || A;       // never off land if land exists nearby
+        placed.push(best);
+        var bll = map.unproject(best, z);
+        cache[m.id] = [bll.lat, bll.lng];
+      });
+    });
+  }
+
+  var moved = false;
   state.missions.forEach(function (m) {
-    if (!m.stacked) {
-      if (m.dlat !== m.lat || m.dlng !== m.lng) { m.dlat = m.lat; m.dlng = m.lng; moved = true; }
-      return;
-    }
-    var r = r0 + step * m.spreadRing;
-    var pt = map.project([m.lat, m.lng], z)
-      .add(L.point(m.spreadDir[0] * r, m.spreadDir[1] * r));
-    var ll = map.unproject(pt, z);
-    if (ll.lat !== m.dlat || ll.lng !== m.dlng) {
-      m.dlat = ll.lat; m.dlng = ll.lng; moved = true;
-    }
+    var c = cache[m.id];
+    if (!c) return;
+    if (c[0] !== m.dlat || c[1] !== m.dlng) { m.dlat = c[0]; m.dlng = c[1]; moved = true; }
   });
   return moved;
 }
@@ -703,7 +782,7 @@ function refresh() {
   renderDrawer(st);
   renderRegions(state.geo, st);
   renderPins();
-  renderSupply(st);
+  renderWarehouses();
   updateFog(st);
 }
 
@@ -766,8 +845,8 @@ function boot() {
       renderPins();
       installPreviewToggle();
       whReady.then(function () {
-        installSupplyToggle();
-        renderSupply(stats(state.missions));
+        installWarehouseToggle();
+        renderWarehouses();
       });
       if (d.error) console.info('[TM] snapshot in use because: ' + d.error);
     })
@@ -810,6 +889,7 @@ state.parseCSV = parseCSV;
 state.normalizeRows = normalizeRows;
 state.reload = function () { return loadData().then(function (d) {
   state.missions = d.missions; state.source = d.source; state.stamp = d.stamp;
+  state.spreadCache = {}; spreadPins();
   refresh(); return d.source;
 }); };
 
@@ -936,11 +1016,13 @@ function openEditForm(m) {
   }).join('');
 
   $('#panel-body').innerHTML =
-    '<form id="edit-form" class="edit" novalidate>' +
+    '<form id="edit-form" class="edit" novalidate data-orig="' + esc(m.name) + '">' +
       '<div class="edit-head">' +
         '<h2>' + esc(m.name) + '</h2>' +
         '<p>' + esc(m.city) + ' · ' + esc(state.lang === 'ar' ? m.cluster : m.clusterEn) + '</p>' +
       '</div>' +
+      '<div class="fld"><label class="fld-k" for="f-name">' + esc(t('fNameEdit')) + '</label>' +
+        '<input class="in" id="f-name" data-name="nameEdit" type="text" dir="auto" value="' + esc(m.name) + '"></div>' +
       '<div class="fld"><label class="fld-k" for="f-mgr">' + esc(t('fManager')) + '</label>' +
         '<input class="in" id="f-mgr" data-name="manager" type="text" value="' + esc(m.manager) + '"></div>' +
       '<div class="fld"><label class="fld-k" for="f-phone">' + esc(t('fPhone')) + '</label>' +
@@ -1032,6 +1114,11 @@ function collectEdit(form) {
 
   /* the Y/N/— toggles: "—" means leave the sheet's value alone, so send
      those keys only when the agent actually picked Y or N */
+  /* rename: hospital_name stays the lookup key; only send the new name when
+     the agent actually changed it (and never blank a hospital's name) */
+  var renamed = val('nameEdit');
+  if (renamed && renamed !== form.dataset.orig) u.hospital_name_edit = renamed;
+
   if (tri('informed')) u.informed = tri('informed');
   if (tri('dosing')) u.dosing_system = tri('dosing');
   if (tri('incubator')) {
@@ -1067,6 +1154,7 @@ function saveEdit(m, form) {
     m.feedback = fields.feedback;
     m.nextStep = fields.next_step;
     m.shortage = fields.shortage_items;
+    if (fields.hospital_name_edit) m.name = fields.hospital_name_edit;   // it is the lookup key next time
     if (fields.informed) m.informed = fields.informed;
     if (fields.dosing_system) m.dosing = fields.dosing_system;
     if (fields.has_incubator) {
@@ -1155,9 +1243,38 @@ function toast(msg) {
 }
 
 
-/* ═══════════════════════════════════ supply network ═══ */
-/* Nupco depots and the clusters they feed. Drawn above the fog — supply
-   lines are logistics you already know about, not territory to discover. */
+/* ══════════════════════════════════ Nupco warehouses ═══ */
+/* Depots sit above the fog — logistics you already know about. The web app
+   has returned two shapes for the same data (name/lat… and the sheet's own
+   headers Warehouse/Latitude…), so read either. */
+function pickField(o, keys) {
+  for (var i = 0; i < keys.length; i++) {
+    var v = o[keys[i]];
+    if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+  }
+  return '';
+}
+
+function normWarehouse(w) {
+  var lat = num(pickField(w, ['lat', 'Latitude', 'latitude']));
+  var lng = num(pickField(w, ['lng', 'Longitude', 'longitude']));
+  return {
+    name: String(pickField(w, ['name', 'Warehouse', 'warehouse'])).trim(),
+    city: String(pickField(w, ['city', 'City'])).trim(),
+    contact: String(pickField(w, ['contact', 'Contact Name', 'contact_name'])).trim(),
+    phone: String(pickField(w, ['phone', 'Contact Phone', 'contact_phone'])).trim(),
+    custodyName: String(pickField(w, ['custody_name', 'أمين العهدة - Name', 'أمين العهدة Name'])).trim(),
+    custodyPhone: String(pickField(w, ['custody_phone', 'أمين العهدة - Phone', 'أمين العهدة Phone'])).trim(),
+    lat: lat, lng: lng,
+    serves: String(pickField(w, ['serves', 'Serves Clusters', 'serves_clusters']))
+      .split(',').map(function (x) { return x.trim(); }).filter(Boolean)
+      .map(function (raw) {
+        var def = resolveCluster(raw);
+        return { raw: raw, def: def, short: def ? def.short : raw };
+      })
+  };
+}
+
 function loadWarehouses() {
   var url = (CFG.APPS_SCRIPT_URL || '').trim();
   var live = url
@@ -1168,35 +1285,29 @@ function loadWarehouses() {
           if (!j || j.success !== true || !j.warehouses || !j.warehouses.length) {
             throw new Error((j && j.error) || 'no warehouses returned');
           }
-          return j.warehouses;
+          var list = j.warehouses.map(normWarehouse).filter(validWarehouse);
+          if (!list.length) throw new Error('warehouse rows had no usable name/coordinates');
+          return list;
         })
     : Promise.reject(new Error('no endpoint'));
 
   return live.catch(function (e) {
     console.warn('[TM] warehouses from the web app failed (' + e.message + '), using the bundled copy');
     return fetch(CFG.WAREHOUSES_FALLBACK_URL).then(function (r) { return r.json(); })
-      .then(function (j) { return j.warehouses || []; });
+      .then(function (j) { return (j.warehouses || []).map(normWarehouse).filter(validWarehouse); });
   }).then(function (list) {
-    state.warehouses = list.map(function (w) {
-      var lat = num(w.lat), lng = num(w.lng);
-      return {
-        name: String(w.name || ''), city: String(w.city || ''),
-        contact: String(w.contact || ''), phone: String(w.phone || ''),
-        lat: lat, lng: lng,
-        /* "جدة 1, جدة 2, مكة" → the same cluster defs the map already uses */
-        serves: String(w.serves || '').split(',').map(function (x) { return x.trim(); })
-          .filter(Boolean).map(function (raw) {
-            var def = resolveCluster(raw);
-            return { raw: raw, def: def, short: def ? def.short : raw };
-          })
-      };
-    }).filter(function (w) { return isFinite(w.lat) && isFinite(w.lng); });
-    return state.warehouses;
+    state.warehouses = list;
+    return list;
   }).catch(function (e) {
     console.warn('[TM] warehouses unavailable:', e.message);
     state.warehouses = [];
     return [];
   });
+}
+
+/* num('') is null and isFinite(null) is true, so check null explicitly */
+function validWarehouse(w) {
+  return !!w.name && w.lat !== null && w.lng !== null && isFinite(w.lat) && isFinite(w.lng);
 }
 
 function warehouseIcon() {
@@ -1207,49 +1318,36 @@ function warehouseIcon() {
   });
 }
 
-function renderSupply(st) {
+function renderWarehouses() {
   var map = state.map;
   (state.supplyLayers || []).forEach(function (l) { map.removeLayer(l); });
   state.supplyLayers = [];
   if (!state.showSupply || !(state.warehouses || []).length) return;
 
-  /* where each cluster actually sits, by its short name */
-  var centres = {};
-  Object.keys(st.clusters).forEach(function (k) {
-    var c = st.clusters[k];
-    centres[c.short] = c;
-  });
-
   state.warehouses.forEach(function (w) {
-    w.serves.forEach(function (sv) {
-      var c = centres[sv.short];
-      if (!c) return;
-      var line = L.polyline([[w.lat, w.lng], [c.lat, c.lng]], {
-        pane: 'supply',
-        className: 'supply-line' + (c.pct >= 0.999 ? ' supply-full' : ''),
-        color: c.pct >= 0.999 ? '#3dffa0' : '#6cb8f0',
-        weight: 2,
-        opacity: 0.8,
-        dashArray: '6 8',
-        interactive: false
-      }).addTo(map);
-      state.supplyLayers.push(line);
-    });
-
     var mk = L.marker([w.lat, w.lng], {
       icon: warehouseIcon(), title: w.name, zIndexOffset: 500, riseOnHover: true
     }).addTo(map);
-    mk.on('click', function () { selectWarehouse(w, st); });
+    mk.on('click', function () { selectWarehouse(w); });
     state.supplyLayers.push(mk);
   });
 }
 
-function selectWarehouse(w, st) {
-  st = st || stats(state.missions);
-  var centres = {};
-  Object.keys(st.clusters).forEach(function (k) { centres[st.clusters[k].short] = st.clusters[k]; });
+function contactRow(label, name, phone) {
+  if (!name && !phone) return row(label, '');
+  return '<div class="row"><span class="row-k">' + esc(label) + '</span><span class="row-v">' +
+    (name ? esc(name) : '') +
+    (phone ? (name ? '<br>' : '') + '<a class="tel" href="tel:' + esc(phone.replace(/\s/g, '')) + '">' +
+             esc(phone) + '</a>' : '') +
+    '</span></div>';
+}
 
-  var rows = w.serves.map(function (sv) {
+function selectWarehouse(w) {
+  var st = stats(state.missions), centres = {};
+  Object.keys(st.clusters).forEach(function (k) { centres[st.clusters[k].short] = st.clusters[k]; });
+  state.selected = null;
+
+  var serves = w.serves.map(function (sv) {
     var c = centres[sv.short];
     var km = c ? Math.round(state.map.distance([w.lat, w.lng], [c.lat, c.lng]) / 1000) : null;
     return '<div class="row"><span class="row-k">' +
@@ -1266,38 +1364,115 @@ function selectWarehouse(w, st) {
       '<p class="p-loc">' + esc(w.city) + ' · ' + w.serves.length + ' ' +
         esc(state.lang === 'ar' ? t('clusters') : (w.serves.length === 1 ? 'cluster' : 'clusters')) + '</p>' +
     '</div>' +
-    '<div class="p-rows"><div class="rows-head">' + esc(t('serves')) + '</div>' + rows +
-      (w.contact ? row(t('manager'), w.contact) : '') +
-      (w.phone ? row(t('phone'), w.phone) : '') +
+    '<div class="p-rows">' +
+      contactRow(t('whContactShort'), w.contact, w.phone) +
+      contactRow(t('custody'), w.custodyName, w.custodyPhone) +
+      '<div class="rows-head">' + esc(t('serves')) + '</div>' + serves +
     '</div>' +
     '<div class="p-actions">' +
-      (w.phone ? '<a class="act act-call" href="tel:' + esc(w.phone.replace(/\s/g, '')) + '">☎ ' + t('call') + '</a>' : '') +
+      (w.phone ? '<a class="act act-call" href="tel:' + esc(w.phone.replace(/\s/g, '')) + '">☎ ' + esc(t('whContactShort')) + '</a>' : '') +
+      (w.custodyPhone ? '<a class="act act-call" href="tel:' + esc(w.custodyPhone.replace(/\s/g, '')) + '">☎ ' + esc(t('custody')) + '</a>' : '') +
       '<a class="act" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
         w.lat + ',' + w.lng + '">➤ ' + t('directions') + '</a>' +
-    '</div>';
+    '</div>' +
+    (editEnabled() ? '<div class="p-actions p-edit-row">' +
+      '<button type="button" class="act act-edit" id="btn-wh-update">✎ ' + esc(t('update')) + '</button>' +
+    '</div>' : '');
+
+  var upd = $('#btn-wh-update');
+  if (upd) upd.addEventListener('click', function () { openWarehouseForm(w); });
 
   $('#panel').classList.add('open');
   $('#panel').setAttribute('aria-hidden', 'false');
   $$('.pin-wrap.is-selected').forEach(function (e) { e.classList.remove('is-selected'); });
 }
 
-function installSupplyToggle() {
+function openWarehouseForm(w) {
+  if (!editEnabled()) { toast(t('editOff')); return; }
+  var input = function (id, name, label, type, value) {
+    return '<div class="fld"><label class="fld-k" for="' + id + '">' + esc(label) + '</label>' +
+      '<input class="in" id="' + id + '" data-name="' + name + '" type="' + type + '"' +
+      (type === 'tel' ? ' inputmode="tel"' : '') + ' value="' + esc(value) + '"></div>';
+  };
+  $('#panel-body').innerHTML =
+    '<form id="wh-form" class="edit" novalidate>' +
+      '<div class="edit-head"><h2>' + esc(w.name) + '</h2>' +
+        '<p>' + esc(t('warehouse')) + ' · ' + esc(w.city) + '</p></div>' +
+      input('w-cn', 'contactName', t('whContact'), 'text', w.contact) +
+      input('w-cp', 'contactPhone', t('whContactPhone'), 'tel', w.phone) +
+      input('w-un', 'custodyName', t('whCustody'), 'text', w.custodyName) +
+      input('w-up', 'custodyPhone', t('whCustodyPhone'), 'tel', w.custodyPhone) +
+      '<p class="edit-err" id="wh-err" hidden role="alert"></p>' +
+      '<div class="edit-actions">' +
+        '<button type="button" class="act" id="wh-cancel">' + esc(t('cancel')) + '</button>' +
+        '<button type="submit" class="act act-call" id="wh-save">' + esc(t('save')) + '</button>' +
+      '</div>' +
+    '</form>';
+
+  var form = $('#wh-form');
+  $('#wh-cancel').addEventListener('click', function () { selectWarehouse(w); });
+  form.addEventListener('submit', function (e) { e.preventDefault(); saveWarehouse(w, form); });
+  $('#panel').scrollTop = 0;
+}
+
+function saveWarehouse(w, form) {
+  var btn = $('#wh-save'), err = $('#wh-err');
+  var val = function (n) { return String(form.querySelector('[data-name="' + n + '"]').value).trim(); };
+  var fields = {
+    contact_name: val('contactName'),
+    contact_phone: val('contactPhone'),
+    custody_name: val('custodyName'),
+    custody_phone: val('custodyPhone')
+  };
+  err.hidden = true;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
+  form.classList.add('is-saving');
+
+  var payload = { warehouse_name: w.name };
+  Object.keys(fields).forEach(function (k) { payload[k] = fields[k]; });
+
+  postUpdate(payload).then(function (res) {
+    if (!res || res.success !== true) {
+      throw new Error((res && res.error) || 'the script rejected the update');
+    }
+    /* the same endpoint serves hospitals; make sure this landed on a depot */
+    if (res.type && res.type !== 'warehouse') {
+      throw new Error('unexpected reply type "' + res.type + '" — check the sheet');
+    }
+    w.contact = fields.contact_name;
+    w.phone = fields.contact_phone;
+    w.custodyName = fields.custody_name;
+    w.custodyPhone = fields.custody_phone;
+    form.classList.remove('is-saving');
+    toast('✓ ' + t('saved'));
+    selectWarehouse(w);
+  }).catch(function (e) {
+    form.classList.remove('is-saving');
+    btn.disabled = false;
+    btn.textContent = t('retry');
+    err.textContent = t('saveFailed') + ' — ' + e.message;
+    err.hidden = false;
+    console.error('[TM] warehouse save failed', e);
+  });
+}
+
+function installWarehouseToggle() {
   var drawer = $('#drawer'), btn = document.createElement('button');
   btn.className = 'supply-toggle' + (state.showSupply ? ' on' : '');
   btn.innerHTML = '<span>▣</span> <b></b>';
   var label = function () {
     btn.querySelector('b').textContent =
-      t('supply') + ' · ' + (state.warehouses || []).length + ' ' + t('depots');
+      t('warehouses') + ' · ' + (state.warehouses || []).length;
   };
   label();
   btn.addEventListener('click', function () {
     state.showSupply = !state.showSupply;
     btn.classList.toggle('on', state.showSupply);
     try { localStorage.setItem('tm_supply', state.showSupply ? '1' : '0'); } catch (e) {}
-    renderSupply(stats(state.missions));
+    renderWarehouses();
   });
-  var list = $('#cluster-list');
-  drawer.insertBefore(btn, list);
+  drawer.insertBefore(btn, $('#cluster-list'));
   state.supplyLabel = label;
 }
 

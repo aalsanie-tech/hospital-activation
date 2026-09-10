@@ -128,13 +128,41 @@ The `—` on each Y/N toggle means "leave the sheet's value alone", so those
 keys are omitted unless the agent picked Y or N. Shortage Items is the
 exception: clearing every chip sends an empty string and clears the cell.
 
+### Renaming a hospital
+
+The form's first field is the hospital name. `hospital_name` stays the lookup
+key (the name as it is now); when the agent changes the field, the new name
+goes alongside it as `hospital_name_edit`. It is only sent when it actually
+changed, and never blank. After a successful rename the map uses the new
+name as the key for the next save.
+
+### Editing a Nupco warehouse
+
+Tap a depot → **Update** → Contact Name, Contact Phone, أمين العهدة Name,
+أمين العهدة Phone → **Save**:
+
+```json
+{ "warehouse_name": "Nupco Jeddah (Maersk)",
+  "contact_name": "…", "contact_phone": "…",
+  "custody_name": "…", "custody_phone": "…" }
+```
+
+Reply: `{"success": true, "row": 3, "updated": [...], "type": "warehouse"}`.
+A reply whose `type` is anything other than `warehouse` is shown as an error,
+since the same endpoint also writes hospitals. `warehouse_name` must match
+the depot's name exactly.
+
+The warehouse list has come back in two shapes (`name`/`lat`/`serves` and
+the sheet's own `Warehouse`/`Latitude`/`Serves Clusters` headers); the loader
+reads either, so a header rename in that tab won't blank the depots.
+
 ### The web app's other endpoints
 
 | GET | Returns |
 |---|---|
 | `?action=test` | health check + hospital count |
 | `?action=products` | the Shortage Items choices (the map loads these on start, falling back to `data/products.json`) |
-| `?action=warehouses` | Nupco warehouses with `lat`/`lng` and the clusters each serves — **not used by the map yet** |
+| `?action=warehouses` | Nupco depots — drawn on the map and editable (see below) |
 
 Check the endpoint from the browser console on the live site:
 
@@ -153,8 +181,9 @@ or move writes behind something that can actually authenticate.
 
 ## The map's look
 
-Four presets live in [`js/themes.js`](js/themes.js): `midnight`, `twilight`,
-`desert`, `tactical`. Each one sets the page palette (CSS, via
+Presets live in [`js/themes.js`](js/themes.js). The default is `tactical`, with
+four variations — `tactical-bright`, `tactical-sharp`, `tactical-steel`,
+`tactical-sand` — plus the earlier `midnight`, `twilight` and `desert`. Each one sets the page palette (CSS, via
 `<html data-preset>`) and the terrain + fog palette (JS, since those colours
 are interpolated per cluster).
 
@@ -184,11 +213,12 @@ python3 -m http.server 8123          # from the repo root
 
 ### Pin spacing
 
-Hospitals in a city share one coordinate in the sheet. Each stack is spread
-on a golden-angle spiral measured in **screen pixels** and recomputed on
-every zoom, so neighbours stay neighbours at city zoom without stacking into
-one dot when you pull back. Pins also scale down below zoom 6. Tune with
-`spreadRadius()` in `js/app.js`.
+Hospitals in a city share one coordinate in the sheet. Stacks are placed
+greedily around that point in **screen pixels**, recomputed per zoom: each
+pin takes the nearest spot that is inside a Saudi region polygon (so coastal
+cities like Jeddah never spill into the sea) and at least one pin-width from
+every neighbour. Positions are cached per zoom level. Pins also scale down
+below zoom 6. See `spreadPins()` in `js/app.js`.
 
 ## Deploying to GitHub Pages
 
