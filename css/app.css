@@ -6,7 +6,7 @@
   --ink:#e8f2ff; --ink-dim:#8ba3bf; --ink-mute:#5b7492;
   --locked:#5b6b82; --contact:#38bdf8; --visited:#fbbf24;
   --partial:#86efac; --active:#22ff88; --gold:#ffd766;
-  --hud-h:76px; --legend-h:58px;
+  --hud-h:76px; --legend-h:104px;
   --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
   --font:'Tajawal',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   --font-hud:'Orbitron',var(--font);
@@ -208,12 +208,34 @@ body.full-conquest .leaflet-pane path.region-conquered{stroke-width:3}
 .leaflet-pane .leaflet-overlay-pane path{stroke-linejoin:round}
 
 /* ═══ LEGEND / FILTER ════════════════════════════════════════════ */
-.legend{
+.bottom-bars{
   position:absolute; left:0; right:0; bottom:0; z-index:1200;
-  display:flex; gap:6px; overflow-x:auto; scrollbar-width:none;
-  padding:8px 10px calc(8px + var(--sab));
-  background:linear-gradient(0deg,#04070cf5 40%,transparent);
+  padding-bottom:var(--sab);
+  background:linear-gradient(0deg,#04070cf7 62%,transparent);
 }
+.legend{
+  display:flex; gap:6px; overflow-x:auto; scrollbar-width:none;
+  padding:4px 10px 8px;
+}
+.filters{
+  display:flex; align-items:center; gap:5px; overflow-x:auto; scrollbar-width:none;
+  padding:8px 10px 0;
+}
+.filters::-webkit-scrollbar{display:none}
+.fgroup-k{
+  flex:none; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-mute); font-family:var(--font-hud); margin-inline-end:2px;
+}
+.fsep{flex:none;width:1px;height:18px;background:var(--line);margin:0 5px}
+.fchip{
+  flex:none; display:flex; align-items:center; gap:5px; cursor:pointer;
+  padding:5px 10px; border-radius:20px; border:1px solid #1c2e44;
+  background:#0a1421d9; color:var(--ink-dim); font-size:11.5px; white-space:nowrap;
+  backdrop-filter:blur(8px);
+}
+.fchip b{font-weight:800;font-size:10.5px;color:#cfe4ff;font-variant-numeric:tabular-nums}
+.fchip.on{border-color:#6cb8f0;background:#12283d;color:#eaf4ff;box-shadow:0 0 12px #6cb8f055}
+.f-agent.on{border-color:var(--active);background:#0d2019;color:var(--active);box-shadow:0 0 12px #22ff8844}
 .legend::-webkit-scrollbar{display:none}
 .lg{
   flex:none; display:flex; align-items:center; gap:6px; cursor:pointer;
@@ -394,7 +416,7 @@ body.full-conquest::after{
 
 /* ═══ DESKTOP ════════════════════════════════════════════════════ */
 @media (min-width:820px){
-  :root{--legend-h:62px}
+  :root{--legend-h:108px}
   .hud{padding:calc(12px + var(--sat)) 16px 10px}
   .hud-title h1{font-size:15px}
   .hud-sub{font-size:12px}
@@ -563,10 +585,14 @@ select.in{
 }
 .pin.stage-0 .pin-core{display:none}
 
-/* pin scale by zoom: a city reads as one cluster from far out */
-.z-far .pin{transform:scale(.72)}
-.z-mid .pin{transform:scale(.88)}
-.z-near .pin{transform:scale(1)}
+/* pin scale = zoom factor × class factor (A largest, C smallest) */
+.pin{transform:scale(calc(var(--zs,1) * var(--cs,1)))}
+.z-far .pin{--zs:.72}
+.z-mid .pin{--zs:.88}
+.z-near .pin{--zs:1}
+.pin.cls-a{--cs:1.22}
+.pin.cls-b{--cs:1}
+.pin.cls-c{--cs:.8}
 .z-far .wh{transform:rotate(45deg) scale(.8)}
 
 /* ═══ PRESETS ════════════════════════════════════════════════════ */
@@ -652,3 +678,53 @@ select.in{
 .loc-ok{color:var(--active)}
 .loc-warn{color:var(--visited)}
 .loc-err{color:#ff9d9d}
+
+/* ═══ URGENCY + ACTION FLAG ══════════════════════════════════════ */
+.pin-ring{
+  position:absolute; width:26px; height:26px; border-radius:50%;
+  border:2px solid transparent; pointer-events:none;
+}
+.urg-aging .pin-ring{
+  border-color:#ff9a3c; box-shadow:0 0 9px #ff9a3ccc,inset 0 0 6px #ff9a3c55;
+}
+.urg-expired .pin-ring{
+  border-color:#ff4d4d; box-shadow:0 0 10px #ff4d4d;
+  animation:urgentPulse 1.5s ease-out infinite;
+}
+@keyframes urgentPulse{
+  0%{transform:scale(.8);opacity:1}
+  75%{transform:scale(1.65);opacity:0}
+  100%{transform:scale(1.65);opacity:0}
+}
+.urg-expired .pin-core{box-shadow:0 0 10px #ff4d4d,0 1px 3px #000a}
+.pin-flag{
+  position:absolute; bottom:-5px; inset-inline-end:-6px; font-size:10px; line-height:1;
+  color:#ff5555; pointer-events:none;
+  text-shadow:0 0 7px #ff2d2d,0 1px 2px #000,0 0 2px #000;
+}
+body.low-power .urg-expired .pin-ring{animation:none}
+@media (prefers-reduced-motion:reduce){.urg-expired .pin-ring{animation:none}}
+
+/* ═══ QUICK VISIT + VISIT LOG ════════════════════════════════════ */
+.act-visit{
+  background:linear-gradient(135deg,#ffc24d,#e08a12); color:#241400;
+  border-color:transparent; cursor:pointer; font-weight:800;
+  box-shadow:0 8px 22px #ffb02733;
+}
+.log-head{
+  display:flex; justify-content:space-between; align-items:baseline;
+  font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-mute); font-family:var(--font-hud); margin:12px 0 6px;
+}
+.log-head span{letter-spacing:0;text-transform:none;font-family:var(--font)}
+.log-list{
+  list-style:none; margin:0; padding:0; max-height:190px; overflow-y:auto;
+  border:1px solid #13212f; border-radius:11px; background:#070e17;
+}
+.log-list li{display:flex;gap:10px;padding:8px 11px;border-bottom:1px solid #0e1a26}
+.log-list li:last-child{border-bottom:0}
+.log-list time{
+  flex:none; font-family:ui-monospace,Menlo,monospace; font-size:10.5px;
+  color:var(--contact); padding-top:1px;
+}
+.log-list span{font-size:12.5px;color:var(--ink-dim);line-height:1.45;word-break:break-word}

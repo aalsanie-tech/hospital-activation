@@ -136,6 +136,29 @@ goes alongside it as `hospital_name_edit`. It is only sent when it actually
 changed, and never blank. After a successful rename the map uses the new
 name as the key for the next save.
 
+### Filters, urgency and the quick visit
+
+**Class and Agent filters** sit in a row above the stage legend. They define
+whose map you are looking at: the header counts, conquest %, province
+shading and fog all recompute from the filtered set, so an agent tapping
+their own name sees their own progress. Stage and cluster filters stack on
+top and only hide pins. Chip counts update against the other filter, so
+"Class" counts reflect the agent currently selected.
+
+**Marker size follows Class** — A largest, C smallest (`--cs` in
+`css/app.css`, multiplied by the zoom factor `--zs`).
+
+**Urgency rings** come from `Visit Status`: `Aging` draws a steady orange
+ring, `Expiring` or `Expired` a pulsing red one. Any `Action Required`
+other than `None`/blank adds a small red flag to the marker at every zoom.
+
+**✓ Visited** on the hospital panel logs a visit in one step: a mandatory
+one-line note, then Save posts
+`{hospital_name, quick_visit: true, visit_note}`. The script stamps the date
+and appends it to the Visit Log; the panel lists every entry, newest first,
+each on its own dated line. The full Update form's `visit_log` is appended
+by the script the same way — it never overwrites the history.
+
 ### Setting a hospital's location from the field
 
 The Update form shows the hospital's current coordinates and a

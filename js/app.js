@@ -87,7 +87,7 @@ function activePreset() {
 
 var state = window.TM = {
   missions: [], source: 'snapshot', stamp: '', lang: 'en',
-  stageFilter: null, clusterFilter: null, preview: false,
+  stageFilter: null, clusterFilter: null, classFilter: null, agentFilter: null, preview: false,
   markers: {}, map: null, fog: null, regionLayer: null, selected: null,
   products: [], warehouses: [], supplyLayers: [], showSupply: true,
   preset: null, spread: {}
@@ -563,19 +563,35 @@ function landRings() {
 }
 
 /* ════════════════════════════════════ pins ═══ */
+/* Aging → steady orange ring; Expiring/Expired → pulsing red ring */
+function urgencyOf(m) {
+  var v = String(m.visitStatus || '').trim().toLowerCase();
+  if (v === 'aging') return 'aging';
+  if (v === 'expiring' || v === 'expired') return 'expired';
+  return '';
+}
+
+function needsAction(m) {
+  var a = String(m.action || '').trim();
+  return !!a && a.toLowerCase() !== 'none';
+}
+
 function pinIcon(m, st) {
-  var stage = st, s = STAGES[stage];
-  var star = stage === 4
-    ? '<span class="pin-star">✦</span>'
-    : '';
+  var stage = st;
+  var star = stage === 4 ? '<span class="pin-star">✦</span>' : '';
+  var urg = urgencyOf(m);
+  var cls = String(m.cls || '').trim().toLowerCase();
   return L.divIcon({
     className: 'pin-wrap',
-    html: '<div class="pin stage-' + stage + (m.stacked ? ' pin-stacked' : '') + '">' +
+    html: '<div class="pin stage-' + stage + (cls ? ' cls-' + cls : '') +
+            (urg ? ' urg-' + urg : '') + (m.stacked ? ' pin-stacked' : '') + '">' +
             '<span class="pin-halo"></span>' +
+            (urg ? '<span class="pin-ring"></span>' : '') +
             (stage === 0
               ? '<span class="pin-lockdisc"></span><span class="pin-lock">🔒</span>'
               : '<span class="pin-core"></span>') +
             star +
+            (needsAction(m) ? '<span class="pin-flag" aria-hidden="true">▲</span>' : '') +
           '</div>',
     iconSize: [stage === 4 ? 30 : 24, stage === 4 ? 30 : 24],
     iconAnchor: [stage === 4 ? 15 : 12, stage === 4 ? 15 : 12]
@@ -603,8 +619,19 @@ function renderPins() {
   });
 }
 
-function visible() {
+/* Class and Agent define whose map this is: counts, conquest, province
+   shading and fog all follow them. Stage and cluster only hide pins. */
+function baseMissions(skip) {
   return state.missions.filter(function (m) {
+    if (skip !== 'class' && state.classFilter &&
+        String(m.cls || '').toUpperCase() !== state.classFilter) return false;
+    if (skip !== 'agent' && state.agentFilter && m.agent !== state.agentFilter) return false;
+    return true;
+  });
+}
+
+function visible() {
+  return baseMissions().filter(function (m) {
     if (state.stageFilter !== null && stageOf(m) !== state.stageFilter) return false;
     if (state.clusterFilter && m.cluster !== state.clusterFilter) return false;
     return true;
@@ -622,8 +649,8 @@ function ringsOf(feature) {
   return out;
 }
 
-function updateFog(st) {
-  var pts = state.missions.map(function (m) {
+function updateFog(st, base) {
+  var pts = (base || baseMissions()).map(function (m) {
     return { lat: m.dlat, lng: m.dlng, stage: stageOf(m) };
   });
 
@@ -701,6 +728,62 @@ function renderLegend(st) {
   });
 }
 
+function agentList() {
+  var seen = [];
+  state.missions.forEach(function (m) {
+    if (m.agent && seen.indexOf(m.agent) === -1) seen.push(m.agent);
+  });
+  return seen.sort();
+}
+
+function shortAgent(name) {
+  var parts = String(name || '').trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : name;
+}
+
+function renderFilters() {
+  var el = $('#filters');
+  if (!el) return;
+  var byClass = baseMissions('class'), byAgent = baseMissions('agent');
+  var count = function (list, test) {
+    var n = 0;
+    list.forEach(function (m) { if (test(m)) n++; });
+    return n;
+  };
+  var chip = function (kind, value, label, n, on) {
+    return '<button class="fchip' + (on ? ' on' : '') + ' f-' + kind + '" data-kind="' + kind +
+      '" data-value="' + esc(value || '') + '" aria-pressed="' + !!on + '">' +
+      esc(label) + '<b>' + n + '</b></button>';
+  };
+
+  var html = '<span class="fgroup-k">' + esc(t('klass')) + '</span>' +
+    chip('class', '', t('all'), byClass.length, !state.classFilter);
+  ['A', 'B', 'C'].forEach(function (c) {
+    html += chip('class', c, c,
+      count(byClass, function (m) { return String(m.cls || '').toUpperCase() === c; }),
+      state.classFilter === c);
+  });
+
+  html += '<span class="fsep"></span><span class="fgroup-k">' + esc(t('agentF')) + '</span>' +
+    chip('agent', '', t('all'), byAgent.length, !state.agentFilter);
+  agentList().forEach(function (a) {
+    html += chip('agent', a, shortAgent(a),
+      count(byAgent, function (m) { return m.agent === a; }),
+      state.agentFilter === a);
+  });
+  el.innerHTML = html;
+
+  $$('.fchip', el).forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.dataset.value || null;
+      if (b.dataset.kind === 'class') state.classFilter = (state.classFilter === v) ? null : v;
+      else state.agentFilter = (state.agentFilter === v) ? null : v;
+      if (state.selected) closePanel();
+      refresh();
+    });
+  });
+}
+
 function renderDrawer(st) {
   var arr = Object.keys(st.clusters).map(function (k) { return st.clusters[k]; })
     .sort(function (a, b) { return b.pct - a.pct || b.total - a.total; });
@@ -747,6 +830,21 @@ function row(label, value, cls) {
          '</span><span class="row-v">' + esc(value) + '</span></div>';
 }
 
+/* The sheet keeps the whole history in one cell, one entry per line,
+   each stamped by the script. Show them all, not just the newest. */
+function visitLogHtml(log) {
+  var lines = String(log || '').split(/\r?\n/)
+    .map(function (l) { return l.trim(); }).filter(Boolean);
+  if (!lines.length) return '';
+  return '<div class="log-head">' + esc(t('fVisitLog')) +
+    ' <span>' + lines.length + ' ' + esc(t('entries')) + '</span></div>' +
+    '<ul class="log-list">' + lines.map(function (ln) {
+      var mm = ln.match(/^\[?\s*(\d{4}-\d{2}-\d{2})\s*\]?\s*[-–—:]?\s*([\s\S]*)$/);
+      return '<li><time>' + esc(mm ? mm[1] : '·') + '</time><span>' +
+             esc(mm ? mm[2] : ln) + '</span></li>';
+    }).join('') + '</ul>';
+}
+
 function selectMission(m) {
   state.selected = m.id;
   var stage = stageOf(m), s = STAGES[stage];
@@ -780,8 +878,7 @@ function selectMission(m) {
       (m.action ? row(t('fAction'), m.action) : '') +
       (m.feedback ? row(t('fFeedback'), m.feedback) : '') +
       (m.notes ? row(t('notes'), m.notes) : '') +
-      (m.visitLog ? '<div class="row row-log"><span class="row-k">' + esc(t('fVisitLog')) +
-        '</span><span class="row-v log">' + esc(m.visitLog) + '</span></div>' : '') +
+      visitLogHtml(m.visitLog) +
     '</div>' +
     '<div class="p-actions">' +
       (m.phone ? '<a class="act act-call" href="tel:' + esc(m.phone.replace(/\s/g, '')) + '">☎ ' + t('call') + '</a>' : '') +
@@ -789,11 +886,14 @@ function selectMission(m) {
         m.lat + ',' + m.lng + '">➤ ' + t('directions') + '</a>' +
     '</div>' +
     (editEnabled() ? '<div class="p-actions p-edit-row">' +
+      '<button type="button" class="act act-visit" id="btn-quick">✓ ' + esc(t('quickVisit')) + '</button>' +
       '<button type="button" class="act act-edit" id="btn-update">✎ ' + esc(t('update')) + '</button>' +
     '</div>' : '');
 
   var upd = $('#btn-update');
   if (upd) upd.addEventListener('click', function () { openEditForm(m); });
+  var qv = $('#btn-quick');
+  if (qv) qv.addEventListener('click', function () { openQuickVisit(m); });
 
   $('#panel').classList.add('open');
   $('#panel').setAttribute('aria-hidden', 'false');
@@ -869,14 +969,16 @@ function applyLang() {
 
 /* ── refresh everything that depends on data/filters ── */
 function refresh() {
-  var st = stats(state.missions);
+  var base = baseMissions();
+  var st = stats(base);
   renderHUD(st);
   renderLegend(st);
+  renderFilters();
   renderDrawer(st);
   renderRegions(state.geo, st);
   renderPins();
   renderWarehouses();
-  updateFog(st);
+  updateFog(st, base);
 }
 
 /* ════════════════════════════════════ boot ═══ */
@@ -1095,6 +1197,74 @@ function productPicker(selectedCsv) {
           }).join('') + '</div>';
       }).join('') +
     '</div></div>';
+}
+
+/* One note, one tap. The script stamps today's date and appends it to the
+   Visit Log; the note is mandatory so the log never fills with blanks. */
+function openQuickVisit(m) {
+  if (!editEnabled()) { toast(t('editOff')); return; }
+  $('#panel-body').innerHTML =
+    '<form id="qv-form" class="edit">' +
+      '<div class="edit-head"><h2>' + esc(m.name) + '</h2>' +
+        '<p>' + esc(m.city) + ' · ' + esc(state.lang === 'ar' ? m.cluster : m.clusterEn) + '</p></div>' +
+      '<div class="fld"><label class="fld-k" for="qv-note">' + esc(t('visitNote')) + ' *</label>' +
+        '<textarea class="in" id="qv-note" rows="3" autocomplete="off"></textarea></div>' +
+      '<p class="edit-err" id="qv-err" hidden role="alert"></p>' +
+      '<div class="edit-actions">' +
+        '<button type="button" class="act" id="qv-cancel">' + esc(t('cancel')) + '</button>' +
+        '<button type="submit" class="act act-visit" id="qv-save">' + esc(t('save')) + '</button>' +
+      '</div>' +
+    '</form>';
+  var form = $('#qv-form');
+  $('#qv-cancel').addEventListener('click', function () { selectMission(m); });
+  form.addEventListener('submit', function (e) { e.preventDefault(); saveQuickVisit(m, form); });
+  $('#panel').scrollTop = 0;
+  $('#qv-note').focus();
+}
+
+function saveQuickVisit(m, form) {
+  var note = String($('#qv-note').value).trim();
+  var err = $('#qv-err'), btn = $('#qv-save');
+  if (!note) {
+    err.textContent = t('noteRequired');
+    err.hidden = false;
+    $('#qv-note').focus();
+    return;
+  }
+  err.hidden = true;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
+  form.classList.add('is-saving');
+
+  postUpdate({ hospital_name: m.name, quick_visit: true, visit_note: note })
+    .then(function (res) {
+      if (!res || res.success !== true) {
+        throw new Error((res && res.error) || 'the script rejected the visit');
+      }
+      var today = todayISO();
+      m.lastVisit = today;
+      m.visitLog = '[' + today + '] ' + note + (m.visitLog ? '\n' + m.visitLog : '');
+      var moved = false;
+      if (res.stage) {
+        var ns = parseStage(res.stage);
+        moved = ns !== m.stage;
+        m.stage = ns;
+        m.stageLabel = res.stage;
+      }
+      form.classList.remove('is-saving');
+      toast('✓ ' + t('visitSaved') + (res.stage ? ' · ' + t('stage2') + ' ' + res.stage : ''));
+      selectMission(m);
+      refresh();
+      if (moved) flashPin(m);
+    })
+    .catch(function (e) {
+      form.classList.remove('is-saving');
+      btn.disabled = false;
+      btn.textContent = t('retry');
+      err.textContent = t('saveFailed') + ' — ' + e.message;
+      err.hidden = false;
+      console.error('[TM] quick visit failed', e);
+    });
 }
 
 function openEditForm(m) {
