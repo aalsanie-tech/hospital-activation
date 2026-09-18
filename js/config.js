@@ -55,6 +55,11 @@ window.TM_CONFIG = {
 
   ACTION_OPTIONS: ['None', 'Broken Device', 'Training Needed', 'Product Complaint', 'Urgent Follow-up'],
 
+  /* How many push items count as full adoption. Mirrors the Apps Script,
+     and is used only when the sheet's own "Products Target" cell is blank
+     (it is blank on every row today). */
+  PUSH_TARGET: 12,
+
   /* ── Look ──────────────────────────────────────────────────────────────
      Map preset (see js/themes.js): tactical | tactical-bright | tactical-sharp |
      tactical-steel | tactical-sand | midnight | twilight | desert.

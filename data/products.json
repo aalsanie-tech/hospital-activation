@@ -1,134 +1,159 @@
 {
  "products": [
   {
-   "name": "GUL Ultra Pouch",
-   "category": "Push",
-   "code": "GUL160/380/520/750"
+   "name": "KPCD224-C",
+   "category": "حزمة مؤشر بيولوجي للبخار",
+   "code": "BI Steam Challenge Pack"
   },
   {
-   "name": "KPCD224-C BI Challenge Pack",
-   "category": "Push",
-   "code": "KPCD224-C"
+   "name": "BT224",
+   "category": "مؤشر حيوي للبخار",
+   "code": "Biological Indicator (steam)"
   },
   {
-   "name": "BT224 BI Steam",
-   "category": "Push",
-   "code": "BT224"
+   "name": "BT96",
+   "category": "مؤشر بيولوجي للبلازما",
+   "code": "Biological Indicator (plasma)"
   },
   {
-   "name": "BT96 BI Steam",
-   "category": "Push",
-   "code": "BT96"
+   "name": "GUL Ultra Pouches",
+   "category": "رولات الترا بخار وبلازما",
+   "code": "Ultra Pouch (Steam + Plasma)"
   },
   {
-   "name": "Transport Box Small",
-   "category": "Push",
-   "code": "BTB003"
+   "name": "BTB003",
+   "category": "صندوق نقل أزرق",
+   "code": "Transport Box Blue 400x300x220mm"
   },
   {
-   "name": "Transport Box Medium",
-   "category": "Push",
-   "code": "RTB003"
+   "name": "RTB003",
+   "category": "صندوق نقل أحمر",
+   "code": "Transport Box Red 400x300x220mm"
   },
   {
-   "name": "Transport Box Large",
-   "category": "Push",
-   "code": "RTB004A"
+   "name": "RTB004A",
+   "category": "صندوق نقل أحمر كبير",
+   "code": "Transport Box Red 600x400x329mm"
   },
   {
-   "name": "J71D Rinse Aid",
-   "category": "Push",
-   "code": "J71D"
+   "name": "J101B",
+   "category": "محلول إنزيمي ٥ لتر",
+   "code": "Enzymatic 5L"
   },
   {
-   "name": "Tip Caps",
-   "category": "Push",
-   "code": "308100"
+   "name": "J71D",
+   "category": "محلول معادل ٢٠ لتر",
+   "code": "Rinse Aid 20L"
   },
   {
-   "name": "Locking Tags",
-   "category": "Push",
-   "code": "LT450"
+   "name": "J92C",
+   "category": "بخاخ تشحيم الأدوات",
+   "code": "Spray Lubricant 400mL"
   },
   {
-   "name": "Enzyme Solution 5L",
-   "category": "Push",
-   "code": "J92C"
+   "name": 308100,
+   "category": "قطع حماية لاطراف الأدوات",
+   "code": "Guard Tip Protector (kit)"
   },
   {
-   "name": "J100E Enzymatic (Dosing)",
-   "category": "Selective",
-   "code": "J100E"
+   "name": "PPT007C",
+   "category": "ورق واقي أطراف الأدوات",
+   "code": "Point Protector 15mm"
   },
   {
-   "name": "J77E Alkaline (Dosing)",
-   "category": "Selective",
-   "code": "J77E"
+   "name": "J100E",
+   "category": "محلول إنزيمي ٢١٠ لتر",
+   "code": "Enzymatic 210L"
   },
   {
-   "name": "Chemical Indicator Type 6",
-   "category": "Inform",
-   "code": "IT27-4YS"
+   "name": "J77E",
+   "category": "محلول قلوي ٢١٠ لتر",
+   "code": "Alkaline 210L"
   },
   {
-   "name": "Chemical Indicator Plasma",
-   "category": "Inform",
-   "code": "CD40"
+   "name": "IT27-4YS",
+   "category": "مؤشر كيميائي للبخار الدرجة ٦",
+   "code": "Chemical Indicator Type 6"
   },
   {
-   "name": "Steam Roll 50mm",
-   "category": "Inform",
-   "code": "RF50"
+   "name": "CD40",
+   "category": "مؤشر كيميائي للبلازما",
+   "code": "Chemical Indicator Plasma Type 4"
   },
   {
-   "name": "Steam Roll 200mm",
-   "category": "Inform",
-   "code": "RF200"
+   "name": "FP092",
+   "category": "كيس تعقيم ذاتي الإغلاق ٩×١١ سم",
+   "code": "Sterilization Pouch 9x11cm"
   },
   {
-   "name": "Steam Roll 250mm",
-   "category": "Inform",
-   "code": "RF250"
+   "name": "FP122",
+   "category": "كيس تعقيم ذاتي الإغلاق ١٢×٢٢ سم",
+   "code": "Sterilization Pouch 12x22cm"
   },
   {
-   "name": "Steam Pouch 90x250",
-   "category": "Inform",
-   "code": "FP092"
+   "name": "FP160",
+   "category": "كيس تعقيم ذاتي الإغلاق ١٦×٢٢ سم",
+   "code": "Sterilization Pouch 16.5x22.5cm"
   },
   {
-   "name": "Steam Pouch 120x250",
-   "category": "Inform",
-   "code": "FP122"
+   "name": "OS140140",
+   "category": "قماش تغليف ١٤٠×١٤٠ سم",
+   "code": "Wrap Sheet SMS 140x140cm"
   },
   {
-   "name": "Steam Pouch 160x380",
-   "category": "Inform",
-   "code": "FP160"
+   "name": "OS100100",
+   "category": "قماش تغليف ١٠٠×١٠٠ سم",
+   "code": "Wrap Sheet SMS 100x100cm"
   },
   {
-   "name": "Wrap Sheet 140x140",
-   "category": "Inform",
-   "code": "OS140140"
+   "name": "RF50",
+   "category": "رول تغليف للبخار ٥ سم",
+   "code": "Sterilization Roll Flat 5cm"
   },
   {
-   "name": "Plasma Roll 250mm",
-   "category": "Inform",
-   "code": "RP250"
+   "name": "RF100",
+   "category": "رول تغليف للبخار ١٠ سم",
+   "code": "Sterilization Roll Flat 10cm"
   },
   {
-   "name": "Cleaning Brush Set",
-   "category": "Inform",
-   "code": "FBC series"
+   "name": "RF200",
+   "category": "رول تغليف للبخار ٢٠ سم",
+   "code": "Sterilization Roll Flat 20cm"
   },
   {
-   "name": "CD23 Labels",
-   "category": "Inform",
-   "code": "CD23"
+   "name": "RF250",
+   "category": "رول تغليف للبخار ٢٥ سم",
+   "code": "Sterilization Roll Flat 25cm"
   },
   {
-   "name": "Integrator IT26-C",
-   "category": "Inform",
-   "code": "IT26-C"
+   "name": "RP250",
+   "category": "رول بلازما ٢٥ سم",
+   "code": "Sterilization Roll Plasma 25cm"
+  },
+  {
+   "name": 1008,
+   "category": "ملصق معلومات للحاويات",
+   "code": "Seal Protocol Label White"
+  },
+  {
+   "name": "FBC3-B350-22",
+   "category": "فرشة تجاويف",
+   "code": "Cleaning Brush Channel 22mm"
+  },
+  {
+   "name": "FBC5-D01",
+   "category": "فرشة نايلون طرفين",
+   "code": "Cleaning Brush Double Head"
+  },
+  {
+   "name": "FBC5-T003",
+   "category": "فرشة نايلون",
+   "code": "Cleaning Brush Tooth Nylon"
+  },
+  {
+   "name": "LT450",
+   "category": "بطاقة إصلاح أدوات",
+   "code": "Locking Tags Red REPAIR"
   }
  ]
 }

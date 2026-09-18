@@ -848,8 +848,9 @@ function visitLogHtml(log) {
 function selectMission(m) {
   state.selected = m.id;
   var stage = stageOf(m), s = STAGES[stage];
-  var prod = (m.adopted != null && m.target != null)
-    ? m.adopted + ' / ' + m.target + (m.adoption != null ? ' (' + m.adoption + '%)' : '')
+  var target = m.target != null ? m.target : CFG.PUSH_TARGET;
+  var prod = (m.adopted != null && target != null)
+    ? m.adopted + ' / ' + target + (m.adoption != null ? ' (' + m.adoption + '%)' : '')
     : (m.adopted != null ? String(m.adopted) : '');
 
   $('#panel-body').innerHTML =
@@ -1133,17 +1134,14 @@ function loadProducts() {
           if (!j || j.success !== true || !j.products || !j.products.length) {
             throw new Error((j && j.error) || 'no products returned');
           }
-          return j.products.map(function (p) {
-            return { name: String(p.name || ''), category: String(p.category || ''),
-                     code: String(p.code == null ? '' : p.code) };
-          }).filter(function (p) { return p.name; });
+          return j.products.map(normProduct).filter(function (p) { return p.label; });
         })
     : Promise.reject(new Error('no endpoint'));
 
   return live.catch(function (e) {
     console.warn('[TM] product list from the web app failed (' + e.message + '), using the bundled copy');
     return fetch(CFG.PRODUCTS_FALLBACK_URL).then(function (r) { return r.json(); })
-      .then(function (j) { return j.products || []; });
+      .then(function (j) { return (j.products || []).map(normProduct).filter(function (p) { return p.label; }); });
   }).then(function (list) {
     state.products = list;
     return list;
@@ -1152,6 +1150,34 @@ function loadProducts() {
     state.products = [];
     return [];
   });
+}
+
+/* The products endpoint has shipped two different field layouts: once as
+   {name, category: Push|Selective|Inform, code}, and once with the values
+   shuffled (name holding the code, category holding the Arabic name).
+   Rather than hard-code either, label each item with its Arabic text when
+   there is any, keep the rest as codes, and only group by "category" when
+   that field actually behaves like a group (i.e. it repeats). */
+function normProduct(p) {
+  var pick = function () {
+    for (var i = 0; i < arguments.length; i++) {
+      var v = p[arguments[i]];
+      if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+    }
+    return '';
+  };
+  var name = pick('name', 'Product Name', 'product'),
+      cat = pick('category', 'Category'),
+      code = pick('code', 'Catalogue Number', 'catalogue', 'nupco', 'moh');
+  var arabic = /[\u0600-\u06FF]/;
+  var all = [name, cat, code].filter(Boolean);
+  var label = all.filter(function (v) { return arabic.test(v); })[0] || name || all[0] || '';
+  return {
+    label: label,
+    codes: all.filter(function (v) { return v !== label; }),
+    group: cat,
+    name: name, category: cat, code: code
+  };
 }
 
 function editEnabled() { return !!(CFG.APPS_SCRIPT_URL || '').trim(); }
@@ -1183,24 +1209,37 @@ function productPicker(selectedCsv) {
     return '<div class="fld"><label class="fld-k">' + esc(t('fShortage')) + '</label>' +
       '<input type="text" class="in" data-name="shortage" value="' + esc(chosen.join(', ')) + '"></div>';
   }
-  var cats = [];
-  list.forEach(function (p) { if (cats.indexOf(p.category) === -1) cats.push(p.category); });
+
+  /* only a repeating "category" is a real grouping */
+  var counts = {};
+  list.forEach(function (p) { if (p.group) counts[p.group] = (counts[p.group] || 0) + 1; });
+  var groups = Object.keys(counts);
+  var grouped = groups.length > 1 && groups.some(function (g) { return counts[g] > 1; });
+
+  var chipFor = function (p) {
+    var on = chosen.indexOf(p.label) > -1;
+    return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-p="' + esc(p.label) + '" ' +
+      'title="' + esc(p.codes.join(' · ')) + '" dir="auto">' + esc(p.label) +
+      (p.codes.length ? '<em>' + esc(p.codes[0]) + '</em>' : '') + '</button>';
+  };
+
+  var body;
+  if (grouped) {
+    var cats = [];
+    list.forEach(function (p) { if (cats.indexOf(p.group) === -1) cats.push(p.group); });
+    body = cats.map(function (c) {
+      return '<div class="pick-cat">' + esc(c) + '</div><div class="pick-row">' +
+        list.filter(function (p) { return p.group === c; }).map(chipFor).join('') + '</div>';
+    }).join('');
+  } else {
+    body = '<div class="pick-row">' + list.map(chipFor).join('') + '</div>';
+  }
+
   return '<div class="fld"><label class="fld-k">' + esc(t('fShortage')) +
     ' <span class="fld-count" id="shortage-count">' + chosen.length + ' ' + esc(t('selected')) + '</span></label>' +
-    '<div class="picker" data-name="shortage">' +
-      cats.map(function (c) {
-        return '<div class="pick-cat">' + esc(c) + '</div><div class="pick-row">' +
-          list.filter(function (p) { return p.category === c; }).map(function (p) {
-            var on = chosen.indexOf(p.name) > -1;
-            return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-p="' + esc(p.name) + '" ' +
-                   'title="' + esc(p.code) + '">' + esc(p.name) + '</button>';
-          }).join('') + '</div>';
-      }).join('') +
-    '</div></div>';
+    '<div class="picker" data-name="shortage">' + body + '</div></div>';
 }
 
-/* One note, one tap. The script stamps today's date and appends it to the
-   Visit Log; the note is mandatory so the log never fills with blanks. */
 function openQuickVisit(m) {
   if (!editEnabled()) { toast(t('editOff')); return; }
   $('#panel-body').innerHTML =
@@ -1269,7 +1308,7 @@ function saveQuickVisit(m, form) {
 
 function openEditForm(m) {
   if (!editEnabled()) { toast(t('editOff')); return; }
-  var total = m.target != null ? m.target : '';
+  var total = m.target != null ? m.target : (CFG.PUSH_TARGET != null ? CFG.PUSH_TARGET : '');
   var labels = { 'None': t('actNone'), 'Broken Device': t('actBroken'),
                  'Training Needed': t('actTraining'), 'Product Complaint': t('actComplaint'),
                  'Urgent Follow-up': t('actUrgent') };
