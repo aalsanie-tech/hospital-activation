@@ -181,9 +181,15 @@ into a form.
 ### Leaderboard and badges
 
 **🏆 Progress** under the header expands a per-agent strip: hospitals owned,
-what moved **this month** (hospitals whose Last Visit falls in the current
-calendar month, counted at the stage they are at now), and the **total**
-reached per stage. It reads every agent out of the data, so a fourth agent
+what moved **this month**, and the **total** reached per stage.
+
+"This month" counts real transitions from `?action=history&month=YYYY-MM`,
+so a hospital that went Locked → Contact → Visited inside one month counts
+once as contacted **and** once as visited. While a month has no logged
+transitions the strip falls back to counting hospitals by their Last Visit
+date and marks every row `est.`, with a note saying so — the numbers are
+never silently approximate. The log is re-read after any save that moves a
+stage. It reads every agent out of the data, so a fourth agent
 appears on their own the day they own a hospital.
 
 A badge is earned per cluster when **all** of that agent's hospitals in it
@@ -193,7 +199,8 @@ wasn't there on the last load flashes briefly over the map.
 
 ### Themes
 
-**Mission** (dark, default), **Light** (white, for management screens) and
+**Mission** (dark blue, default), **Desert** (warm sand, earth and gold —
+markers glow amber, fog is warm brown, fully-won ground turns gold) and
 **Saudi** (national green and white, with Arabic region names drawn on the
 map). The switcher is in the drawer; the choice is remembered in
 localStorage and applies without a reload. Themes are presets in

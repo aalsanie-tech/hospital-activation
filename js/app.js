@@ -101,7 +101,8 @@ function activePreset() {
   try { saved = localStorage.getItem('tm_theme'); } catch (e) {}
   var key = q || saved || CFG.PRESET || 'midnight';
   var P = window.TM_PRESETS || {};
-  if (!P[key]) key = 'midnight';
+  if (!P[key]) key = CFG.PRESET || 'mission';          // a dropped theme falls back
+  if (!P[key]) key = 'mission';
   document.documentElement.setAttribute('data-preset', key);
   state.presetKey = key;
   return P[key] || {};
@@ -113,7 +114,8 @@ var state = window.TM = {
   markers: {}, map: null, fog: null, regionLayer: null, selected: null,
   products: [], warehouses: [], supplyLayers: [], showSupply: true,
   preset: null, spread: {}, contacts: {}, contactsFresh: {}, contactDelete: null, contactsOpen: false,
-  leaderboardOpen: false, badgeDetail: null, labelLayer: null
+  leaderboardOpen: false, badgeDetail: null, labelLayer: null,
+  history: [], historyOk: false, monthEstimated: false
 };
 
 /* ════════════════════════════════════════ CSV ═══ */
@@ -482,6 +484,47 @@ var BADGE_TIERS = [
   { key: 'gold',   icon: '⭐', minStage: 4 }
 ];
 
+/* The script logs every stage change to a Stage History tab. Counting real
+   transitions is the only way "+1 contacted AND +1 visited" can be right
+   for a hospital that moved twice in one month — current-stage counting
+   can only ever see where it ended up. */
+function loadHistory() {
+  var url = (CFG.APPS_SCRIPT_URL || '').trim();
+  state.historyOk = false;
+  if (!url) { state.history = []; return Promise.resolve([]); }
+  var month = currentMonthKey();
+  return fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') +
+                          'action=history&month=' + encodeURIComponent(month),
+                          CFG.CSV_TIMEOUT_MS || 8000)
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (j) {
+      if (!j || j.success !== true) throw new Error((j && j.error) || 'history unavailable');
+      var raw = j.transitions || j.history || j.entries || [];
+      state.history = raw.map(function (h) {
+        return {
+          date: String(h.date || h.Date || '').slice(0, 10),
+          hospital: String(h.hospital || h.Hospital || '').trim(),
+          agent: String(h.agent || h.Agent || '').trim(),
+          from: parseStage(h.from != null ? h.from : h.from_stage),
+          to: parseStage(h.to != null ? h.to : h.to_stage)
+        };
+      }).filter(function (h) { return h.hospital || h.agent; });
+      state.historyOk = true;
+      state.historyMonth = month;
+      return state.history;
+    })
+    .catch(function (e) {
+      console.warn('[TM] stage history unavailable:', e.message);
+      state.history = [];
+      state.historyOk = false;
+      return [];
+    });
+}
+
+function refreshHistory() {
+  return loadHistory().then(function () { renderLeaderboard(); });
+}
+
 function currentMonthKey() {
   var d = new Date();
   return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
@@ -493,6 +536,8 @@ function currentMonthKey() {
    current calendar month, grouped by the stage they are at now. */
 function agentStats(list) {
   var mk = currentMonthKey(), byAgent = {};
+  var useHistory = state.historyOk && (state.history || []).length > 0;
+  state.monthEstimated = !useHistory;
   list.forEach(function (m) {
     var a = m.agent || '—';
     var s = byAgent[a] || (byAgent[a] = {
@@ -501,12 +546,21 @@ function agentStats(list) {
     s.total++;
     var st = stageOf(m);
     for (var i = 0; i <= st; i++) s.reached[i]++;
-    if (String(m.lastVisit || '').slice(0, 7) === mk) s.month[st]++;
+    /* fallback only: where a hospital visited this month stands now */
+    if (!useHistory && String(m.lastVisit || '').slice(0, 7) === mk) s.month[st]++;
     var c = s.clusters[m.cluster] ||
       (s.clusters[m.cluster] = { name: m.cluster, short: m.clusterShort || m.cluster, total: 0, min: 4 });
     c.total++;
     if (st < c.min) c.min = st;
   });
+  if (useHistory) {
+    (state.history || []).forEach(function (h) {
+      var s = byAgent[h.agent];
+      if (!s || !h.to) return;
+      s.month[h.to]++;                       // one count per transition, not per hospital
+    });
+  }
+
   return Object.keys(byAgent).sort().map(function (a) {
     var s = byAgent[a];
     s.badges = {};
@@ -920,15 +974,17 @@ function renderLeaderboard() {
       detail = '<div class="badge-detail">' + (tier ? tier.icon + ' ' : '') +
         esc(s.badges[state.badgeDetail.tier].join(' · ')) + '</div>';
     }
+    var est = state.monthEstimated ? ' <em class="lb-est">' + esc(t('estTag')) + '</em>' : '';
     return '<div class="lb-row">' +
       '<div class="lb-top"><span class="lb-name" dir="auto">' + esc(s.agent) +
         ' <em>(' + s.total + ' ' + esc(t('hospitalsLbl')) + ')</em></span>' +
         '<span class="lb-badges">' + (badges || '') + '</span></div>' +
-      '<div class="lb-line"><b>' + esc(t('thisMonth')) + ':</b> ' + esc(month) + '</div>' +
+      '<div class="lb-line"><b>' + esc(t('thisMonth')) + ':</b> ' + esc(month) + est + '</div>' +
       '<div class="lb-line"><b>' + esc(t('totalLbl')) + ':</b> ' + esc(total) + '</div>' +
       detail +
     '</div>';
-  }).join('') + '<p class="lb-hint">' + esc(t('badgeHint')) + '</p>';
+  }).join('') + '<p class="lb-hint">' +
+    (state.monthEstimated ? esc(t('estNote')) + '<br>' : '') + esc(t('badgeHint')) + '</p>';
 
   $$('.badge', el).forEach(function (b) {
     b.addEventListener('click', function () {
@@ -1411,6 +1467,7 @@ function boot() {
 
   loadProducts();
   loadContacts();
+  loadHistory().then(function () { renderLeaderboard(); });
   var whReady = loadWarehouses();
   Promise.all([loadData(), fetch(CFG.REGIONS_URL).then(function (r) { return r.json(); })])
     .then(function (res) {
@@ -1783,6 +1840,7 @@ function saveQuickVisit(m, form) {
       selectMission(m);
       refresh();
       if (moved) flashPin(m);
+      if (res.stage) refreshHistory();
     })
     .catch(function (e) {
       form.classList.remove('is-saving');
@@ -2038,6 +2096,7 @@ function saveEdit(m, form) {
     selectMission(m);
     refresh();
     if (moved) flashPin(m);
+    if (res.stage) refreshHistory();                 // the script just logged it
   }).catch(function (e) {
     form.classList.remove('is-saving');
     btn.disabled = false;

@@ -47,16 +47,22 @@ window.TM_PRESETS = {
     line: 'rgba(150,225,190,',    lineFull: '#a6ffd4'
   },
 
-  /* desert night — warm ground under a cool sky, sand where nothing is won */
+  /* Desert — Arabian strategy map: sand, earth and gold */
   desert: {
     label: 'Desert',
-    fog: { color: [28, 20, 16], opacity: 0.82 },
+    fog: { color: [44, 36, 23], opacity: 0.82 },          /* #2C2417, warm dark */
+    fogLandOnly: true,
     terrain: [
-      [0.00, [86, 68, 50]], [0.25, [104, 96, 54]],
-      [0.55, [86, 148, 76]], [0.80, [80, 206, 110]], [1.00, [130, 255, 160]]
+      [0.00, [139, 115, 85]],                              /* #8B7355 bare earth */
+      [0.25, [158, 133, 79]],
+      [0.55, [186, 152, 66]],
+      [0.80, [214, 177, 55]],
+      [1.00, [240, 205, 74]]                               /* rich gold, fully won */
     ],
-    outFill: '#2a2119', outLine: '#6b5540',
-    line: 'rgba(214,196,140,',    lineFull: '#ffe9a8'
+    outFill: '#5c4d34', outLine: '#6B5B3E',
+    outBorder: { color: '#e8d9b0', weight: 2.4, opacity: 0.92, dash: '8 6', aboveFog: true },
+    line: 'rgba(226,196,116,',  lineFull: '#ffe27a',
+    ui: 'desert'
   },
 
   /* command table — a lit tactical surface; the least dark of the four */
@@ -127,20 +133,6 @@ window.TM_PRESETS = {
     line: 'rgba(236,226,196,',    lineFull: '#f4ffd8'
   },
 
-  /* Light — white board for management screens */
-  light: {
-    label: 'Light',
-    fog: { color: [226, 233, 243], opacity: 0.55 },
-    fogLandOnly: true,
-    terrain: [
-      [0.00, [203, 212, 224]], [0.25, [150, 200, 186]],
-      [0.55, [86, 190, 140]], [0.80, [44, 175, 104]], [1.00, [16, 150, 80]]
-    ],
-    outFill: '#d8e0ea', outLine: '#7d8ea6',
-    outBorder: { color: '#5a6b82', weight: 2.4, opacity: 0.9, dash: '8 6', aboveFog: true },
-    line: 'rgba(30,110,70,',      lineFull: '#0f7a44',
-    ui: 'light'
-  },
 
   /* Saudi — national green and white, Arabic region names */
   saudi: {
@@ -162,6 +154,6 @@ window.TM_PRESETS = {
 /* what the theme switcher offers */
 window.TM_THEMES = [
   { key: 'mission', label: 'Mission', swatch: '#2f62a0' },
-  { key: 'light',   label: 'Light',   swatch: '#e6ecf4' },
+  { key: 'desert',  label: 'Desert',  swatch: '#C9A227' },
   { key: 'saudi',   label: 'Saudi',   swatch: '#006C35' }
 ];
