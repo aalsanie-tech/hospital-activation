@@ -76,12 +76,34 @@ function resolveCluster(raw) {
 }
 
 /* exposed for debugging/support: window.TM.map, window.TM.missions … */
+/* Switch theme without a reload: palette, fog and labels all re-render. */
+function applyPreset(key) {
+  var P = window.TM_PRESETS || {};
+  if (!P[key]) return;
+  document.documentElement.setAttribute('data-preset', key);
+  state.preset = P[key];
+  state.presetKey = key;
+  try { localStorage.setItem('tm_theme', key); } catch (e) {}
+  if (state.fog) {
+    var f = P[key].fog || {};
+    state.fog.options.opacity = f.opacity != null ? f.opacity : CFG.FOG_OPACITY;
+    state.fog.options.tint = f.color;
+    state.fog.options.landOnly = !!P[key].fogLandOnly;
+    state.fog.setLand(P[key].fogLandOnly ? landRings() : []);
+  }
+  refresh();
+  renderRegionLabels();
+}
+
 function activePreset() {
   var q = new URLSearchParams(location.search).get('preset');
-  var key = q || CFG.PRESET || 'midnight';
+  var saved = null;
+  try { saved = localStorage.getItem('tm_theme'); } catch (e) {}
+  var key = q || saved || CFG.PRESET || 'midnight';
   var P = window.TM_PRESETS || {};
   if (!P[key]) key = 'midnight';
   document.documentElement.setAttribute('data-preset', key);
+  state.presetKey = key;
   return P[key] || {};
 }
 
@@ -90,7 +112,8 @@ var state = window.TM = {
   stageFilter: null, clusterFilter: null, classFilter: null, agentFilter: null, preview: false,
   markers: {}, map: null, fog: null, regionLayer: null, selected: null,
   products: [], warehouses: [], supplyLayers: [], showSupply: true,
-  preset: null, spread: {}
+  preset: null, spread: {}, contacts: {}, contactsOpen: false,
+  leaderboardOpen: false, badgeDetail: null, labelLayer: null
 };
 
 /* ════════════════════════════════════════ CSV ═══ */
@@ -452,6 +475,86 @@ function stats(list) {
   return s;
 }
 
+var BADGE_TIERS = [
+  { key: 'blue',   icon: '🔵', minStage: 1 },
+  { key: 'orange', icon: '🟠', minStage: 2 },
+  { key: 'green',  icon: '🟢', minStage: 3 },
+  { key: 'gold',   icon: '⭐', minStage: 4 }
+];
+
+function currentMonthKey() {
+  var d = new Date();
+  return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+}
+
+/* Per agent: how far each hospital has come, what moved this month, and a
+   badge for every cluster where ALL of that agent's hospitals passed a
+   stage. "This month" counts hospitals whose Last Visit falls in the
+   current calendar month, grouped by the stage they are at now. */
+function agentStats(list) {
+  var mk = currentMonthKey(), byAgent = {};
+  list.forEach(function (m) {
+    var a = m.agent || '—';
+    var s = byAgent[a] || (byAgent[a] = {
+      agent: a, total: 0, reached: [0, 0, 0, 0, 0], month: [0, 0, 0, 0, 0], clusters: {}
+    });
+    s.total++;
+    var st = stageOf(m);
+    for (var i = 0; i <= st; i++) s.reached[i]++;
+    if (String(m.lastVisit || '').slice(0, 7) === mk) s.month[st]++;
+    var c = s.clusters[m.cluster] ||
+      (s.clusters[m.cluster] = { name: m.cluster, short: m.clusterShort || m.cluster, total: 0, min: 4 });
+    c.total++;
+    if (st < c.min) c.min = st;
+  });
+  return Object.keys(byAgent).sort().map(function (a) {
+    var s = byAgent[a];
+    s.badges = {};
+    BADGE_TIERS.forEach(function (tier) { s.badges[tier.key] = []; });
+    Object.keys(s.clusters).forEach(function (k) {
+      var c = s.clusters[k];
+      BADGE_TIERS.forEach(function (tier) {
+        if (c.min >= tier.minStage) s.badges[tier.key].push(c.short);
+      });
+    });
+    return s;
+  });
+}
+
+function badgeKeys(stats) {
+  var out = [];
+  stats.forEach(function (s) {
+    BADGE_TIERS.forEach(function (tier) {
+      s.badges[tier.key].forEach(function (cl) { out.push(s.agent + '|' + tier.key + '|' + cl); });
+    });
+  });
+  return out;
+}
+
+/* A badge that was not there last time is worth a moment on the map. */
+function checkNewBadges(stats) {
+  if (state.preview || state.sim) return;
+  var now = badgeKeys(stats), prev = null;
+  try { prev = JSON.parse(localStorage.getItem('tm_badges') || 'null'); } catch (e) {}
+  try { localStorage.setItem('tm_badges', JSON.stringify(now)); } catch (e) {}
+  if (!prev) return;
+  var fresh = now.filter(function (k) { return prev.indexOf(k) === -1; });
+  if (!fresh.length) return;
+  var parts = fresh[0].split('|');
+  var tier = BADGE_TIERS.filter(function (x) { return x.key === parts[1]; })[0];
+  celebrate((tier ? tier.icon + ' ' : '') + parts[2] + ' · ' + shortAgent(parts[0]) +
+            (fresh.length > 1 ? ' +' + (fresh.length - 1) : ''));
+}
+
+function celebrate(text) {
+  var el = document.createElement('div');
+  el.className = 'celebrate';
+  el.innerHTML = '<span>' + esc(text) + '</span>';
+  document.body.appendChild(el);
+  setTimeout(function () { el.classList.add('go'); }, 20);
+  setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 3400);
+}
+
 /* ════════════════════════════════════ map ═══ */
 function initMap() {
   var map = L.map('map', {
@@ -467,6 +570,12 @@ function initMap() {
   map.createPane('supply').style.zIndex = 470;
   map.createPane('borders').style.zIndex = 455;      // just above the fog
   map.getPane('borders').style.pointerEvents = 'none';
+  map.createPane('labels').style.zIndex = 465;
+  map.getPane('labels').style.pointerEvents = 'none';
+  if (CFG.MAX_BOUNDS) {
+    map.setMaxBounds(L.latLngBounds(CFG.MAX_BOUNDS));   // no panning into empty ocean
+    map.options.maxBoundsViscosity = 0.8;
+  }
   map.getPane('fogPane').style.pointerEvents = 'none';
   map.getPane('regions').style.pointerEvents = 'auto';
   L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -548,6 +657,36 @@ function renderRegions(geo, st) {
       }
     }).addTo(state.map);
   }
+}
+
+/* Arabic region names, drawn for themes that ask for them */
+function renderRegionLabels() {
+  if (state.labelLayer) { state.map.removeLayer(state.labelLayer); state.labelLayer = null; }
+  var P = state.preset || {};
+  if (!P.regionLabels || !state.geo) return;
+  var names = (state.data && state.data.regionNames) || {};
+  var group = L.layerGroup([], { pane: 'labels' });
+  state.geo.features.forEach(function (f) {
+    var rings = ringsOf(f);
+    if (!rings.length) return;
+    var best = rings[0], bestLen = 0;
+    rings.forEach(function (r) { if (r.length > bestLen) { bestLen = r.length; best = r; } });
+    var minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    best.forEach(function (c) {
+      if (c[0] < minLat) minLat = c[0];
+      if (c[0] > maxLat) maxLat = c[0];
+      if (c[1] < minLng) minLng = c[1];
+      if (c[1] > maxLng) maxLng = c[1];
+    });
+    var nameAr = (names[f.properties.iso] && names[f.properties.iso].ar) || f.properties.nameAr;
+    if (!nameAr) return;
+    L.marker([(minLat + maxLat) / 2, (minLng + maxLng) / 2], {
+      pane: 'labels', interactive: false,
+      icon: L.divIcon({ className: 'region-label-wrap', html: '<span class="region-label">' + esc(nameAr) + '</span>' })
+    }).addTo(group);
+  });
+  group.addTo(state.map);
+  state.labelLayer = group;
 }
 
 function landRings() {
@@ -685,6 +824,19 @@ function updateFog(st, base) {
 /* ════════════════════════════════════ UI ═══ */
 function t(k) { return (I18N[state.lang] && I18N[state.lang][k]) || I18N.en[k] || k; }
 function stageName(i) { return STAGES[i][state.lang] || STAGES[i].en; }
+/* The CSV export can drop a leading zero: a bare 9-digit number gets it
+   back, for display and for the tel: link alike. */
+function fmtPhone(raw) {
+  var txt = String(raw == null ? '' : raw).trim();
+  var d = txt.replace(/\D/g, '');
+  if (d.length === 9) return '0' + d;
+  return txt;
+}
+
+function telHref(raw) {
+  return 'tel:' + fmtPhone(raw).replace(/\s/g, '');
+}
+
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -739,6 +891,77 @@ function agentList() {
 function shortAgent(name) {
   var parts = String(name || '').trim().split(/\s+/);
   return parts.length > 1 ? parts[parts.length - 1] : name;
+}
+
+function renderLeaderboard() {
+  var el = $('#leaderboard'), btn = $('#lb-toggle');
+  if (!el || !btn) return;
+  var stats = agentStats(state.missions);
+  btn.setAttribute('aria-expanded', !!state.leaderboardOpen);
+  btn.classList.toggle('on', !!state.leaderboardOpen);
+  el.hidden = !state.leaderboardOpen;
+  if (!state.leaderboardOpen) return;
+
+  var label = ['locked', 'contacted', 'visited', 'partial', 'activated'];
+  el.innerHTML = stats.map(function (s) {
+    var badges = BADGE_TIERS.map(function (tier) {
+      var n = s.badges[tier.key].length;
+      return n ? '<button type="button" class="badge" data-agent="' + esc(s.agent) +
+        '" data-tier="' + tier.key + '">' + tier.icon + '<b>×' + n + '</b></button>' : '';
+    }).join('');
+    var month = [1, 2, 3, 4].filter(function (i) { return s.month[i]; })
+      .map(function (i) { return '+' + s.month[i] + ' ' + t(label[i]); }).join(' · ') || '—';
+    var total = [1, 2, 3, 4].filter(function (i) { return s.reached[i]; })
+      .map(function (i) { return s.reached[i] + '/' + s.total + ' ' + t(label[i]); }).join(' · ') ||
+      ('0/' + s.total);
+    var detail = '';
+    if (state.badgeDetail && state.badgeDetail.agent === s.agent) {
+      var tier = BADGE_TIERS.filter(function (x) { return x.key === state.badgeDetail.tier; })[0];
+      detail = '<div class="badge-detail">' + (tier ? tier.icon + ' ' : '') +
+        esc(s.badges[state.badgeDetail.tier].join(' · ')) + '</div>';
+    }
+    return '<div class="lb-row">' +
+      '<div class="lb-top"><span class="lb-name" dir="auto">' + esc(s.agent) +
+        ' <em>(' + s.total + ' ' + esc(t('hospitalsLbl')) + ')</em></span>' +
+        '<span class="lb-badges">' + (badges || '') + '</span></div>' +
+      '<div class="lb-line"><b>' + esc(t('thisMonth')) + ':</b> ' + esc(month) + '</div>' +
+      '<div class="lb-line"><b>' + esc(t('totalLbl')) + ':</b> ' + esc(total) + '</div>' +
+      detail +
+    '</div>';
+  }).join('') + '<p class="lb-hint">' + esc(t('badgeHint')) + '</p>';
+
+  $$('.badge', el).forEach(function (b) {
+    b.addEventListener('click', function () {
+      var same = state.badgeDetail && state.badgeDetail.agent === b.dataset.agent &&
+                 state.badgeDetail.tier === b.dataset.tier;
+      state.badgeDetail = same ? null : { agent: b.dataset.agent, tier: b.dataset.tier };
+      renderLeaderboard();
+    });
+  });
+  checkNewBadges(stats);
+}
+
+function installThemeSwitch() {
+  var drawer = $('#drawer');
+  if (!drawer || $('#theme-switch')) return;
+  var box = document.createElement('div');
+  box.id = 'theme-switch';
+  box.className = 'theme-switch';
+  var themes = (window.TM_THEMES || []);
+  var paint = function () {
+    box.innerHTML = '<span class="fgroup-k">' + esc(t('theme')) + '</span>' +
+      themes.map(function (th) {
+        return '<button type="button" class="tbtn' +
+          (state.presetKey === th.key ? ' on' : '') + '" data-key="' + th.key + '">' +
+          '<i style="background:' + th.swatch + '"></i>' + esc(th.label) + '</button>';
+      }).join('');
+    $$('.tbtn', box).forEach(function (b) {
+      b.addEventListener('click', function () { applyPreset(b.dataset.key); paint(); });
+    });
+  };
+  paint();
+  state.themePaint = paint;
+  drawer.insertBefore(box, $('#cluster-list'));
 }
 
 function renderFilters() {
@@ -830,6 +1053,94 @@ function row(label, value, cls) {
          '</span><span class="row-v">' + esc(value) + '</span></div>';
 }
 
+function contactsHtml(m) {
+  var list = contactsFor(m), open = state.contactsOpen;
+  var rows = list.length
+    ? list.map(function (c) {
+        return '<div class="ct' + (c.primary ? ' ct-primary' : '') + '">' +
+          '<span class="ct-role">' + esc(c.role || t('contact')) + '</span>' +
+          '<span class="ct-name" dir="auto">' + esc(c.name || t('none')) + '</span>' +
+          (c.phone
+            ? '<a class="ct-tel" href="' + esc(telHref(c.phone)) + '">' + esc(fmtPhone(c.phone)) + '</a>'
+            : '<span class="ct-tel ct-muted">' + esc(t('none')) + '</span>') +
+        '</div>';
+      }).join('')
+    : '<p class="ct-empty">' + esc(t('noContacts')) + '</p>';
+
+  return '<div class="contacts' + (open ? ' open' : '') + '">' +
+    '<button type="button" class="contacts-head" id="contacts-toggle" aria-expanded="' + !!open + '">' +
+      '<span>' + esc(t('contacts')) + ' <b>' + list.length + '</b></span>' +
+      '<i class="ct-caret">▾</i></button>' +
+    '<div class="contacts-body"' + (open ? '' : ' hidden') + '>' + rows +
+      (editEnabled() ? '<button type="button" class="ct-add" id="contact-add">+ ' +
+        esc(t('addContact')) + '</button>' : '') +
+    '</div></div>';
+}
+
+function openContactForm(m) {
+  if (!editEnabled()) { toast(t('editOff')); return; }
+  var roles = (CFG.CONTACT_ROLES || ['Other']).map(function (r) {
+    return '<option value="' + esc(r) + '">' + esc(r) + '</option>';
+  }).join('');
+  $('#panel-body').innerHTML =
+    '<form id="ct-form" class="edit">' +
+      '<div class="edit-head"><h2>' + esc(t('addContact')) + '</h2>' +
+        '<p dir="auto">' + esc(m.name) + '</p></div>' +
+      '<div class="fld"><label class="fld-k" for="ct-role">' + esc(t('role')) + '</label>' +
+        '<select class="in" id="ct-role" data-name="role">' + roles + '</select></div>' +
+      '<div class="fld"><label class="fld-k" for="ct-name">' + esc(t('fManager')) + '</label>' +
+        '<input class="in" id="ct-name" data-name="name" type="text" dir="auto"></div>' +
+      '<div class="fld"><label class="fld-k" for="ct-phone">' + esc(t('phone')) + '</label>' +
+        '<input class="in" id="ct-phone" data-name="phone" type="tel" inputmode="tel"></div>' +
+      '<p class="edit-err" id="ct-err" hidden role="alert"></p>' +
+      '<div class="edit-actions">' +
+        '<button type="button" class="act" id="ct-cancel">' + esc(t('cancel')) + '</button>' +
+        '<button type="submit" class="act act-call" id="ct-save">' + esc(t('save')) + '</button>' +
+      '</div>' +
+    '</form>';
+  var form = $('#ct-form');
+  $('#ct-cancel').addEventListener('click', function () { selectMission(m); });
+  form.addEventListener('submit', function (e) { e.preventDefault(); saveContact(m, form); });
+  $('#panel').scrollTop = 0;
+  $('#ct-name').focus();
+}
+
+function saveContact(m, form) {
+  var role = $('#ct-role').value, name = String($('#ct-name').value).trim(),
+      phone = String($('#ct-phone').value).trim();
+  var err = $('#ct-err'), btn = $('#ct-save');
+  if (!name && !phone) {
+    err.textContent = t('noteRequired');
+    err.hidden = false;
+    return;
+  }
+  err.hidden = true;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
+  form.classList.add('is-saving');
+
+  postUpdate({
+    hospital_name: m.name, add_contact: true,
+    contact_role: role, contact_name: name, contact_phone: fmtPhone(phone)
+  }).then(function (res) {
+    if (!res || res.success !== true) {
+      throw new Error((res && res.error) || 'the script rejected the contact');
+    }
+    (state.contacts[m.name] = state.contacts[m.name] || []).push({ role: role, name: name, phone: fmtPhone(phone) });
+    form.classList.remove('is-saving');
+    state.contactsOpen = true;
+    toast('✓ ' + t('contactSaved'));
+    selectMission(m);
+  }).catch(function (e) {
+    form.classList.remove('is-saving');
+    btn.disabled = false;
+    btn.textContent = t('retry');
+    err.textContent = t('saveFailed') + ' — ' + e.message;
+    err.hidden = false;
+    console.error('[TM] add contact failed', e);
+  });
+}
+
 /* The sheet keeps the whole history in one cell, one entry per line,
    each stamped by the script. Show them all, not just the newest. */
 function visitLogHtml(log) {
@@ -863,11 +1174,8 @@ function selectMission(m) {
           return '<i class="tk stage-' + x.id + (x.id <= stage ? ' done' : '') + '"></i>';
         }).join('') + '</div>' +
     '</div>' +
+    contactsHtml(m) +
     '<div class="p-rows">' +
-      row(t('manager'), m.manager) +
-      (m.phone ? '<div class="row"><span class="row-k">' + t('phone') + '</span>' +
-        '<span class="row-v"><a class="tel" href="tel:' + esc(m.phone.replace(/\s/g, '')) + '">' +
-        esc(m.phone) + '</a></span></div>' : row(t('phone'), '')) +
       row(t('agent'), m.agent) +
       row(t('lastVisit'), m.lastVisit) +
       row(t('nextVisit'), m.nextVisit) +
@@ -882,7 +1190,7 @@ function selectMission(m) {
       visitLogHtml(m.visitLog) +
     '</div>' +
     '<div class="p-actions">' +
-      (m.phone ? '<a class="act act-call" href="tel:' + esc(m.phone.replace(/\s/g, '')) + '">☎ ' + t('call') + '</a>' : '') +
+      (m.phone ? '<a class="act act-call" href="' + esc(telHref(m.phone)) + '">☎ ' + t('call') + '</a>' : '') +
       '<a class="act" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
         m.lat + ',' + m.lng + '">➤ ' + t('directions') + '</a>' +
     '</div>' +
@@ -890,6 +1198,14 @@ function selectMission(m) {
       '<button type="button" class="act act-visit" id="btn-quick">✓ ' + esc(t('quickVisit')) + '</button>' +
       '<button type="button" class="act act-edit" id="btn-update">✎ ' + esc(t('update')) + '</button>' +
     '</div>' : '');
+
+  var ctog = $('#contacts-toggle');
+  if (ctog) ctog.addEventListener('click', function () {
+    state.contactsOpen = !state.contactsOpen;
+    selectMission(m);
+  });
+  var cadd = $('#contact-add');
+  if (cadd) cadd.addEventListener('click', function () { openContactForm(m); });
 
   var upd = $('#btn-update');
   if (upd) upd.addEventListener('click', function () { openEditForm(m); });
@@ -975,6 +1291,7 @@ function refresh() {
   renderHUD(st);
   renderLegend(st);
   renderFilters();
+  renderLeaderboard();
   renderDrawer(st);
   renderRegions(state.geo, st);
   renderPins();
@@ -993,6 +1310,11 @@ function boot() {
   state.preset = activePreset();
   initMap();
 
+  $('#lb-toggle').addEventListener('click', function () {
+    state.leaderboardOpen = !state.leaderboardOpen;
+    if (!state.leaderboardOpen) state.badgeDetail = null;
+    renderLeaderboard();
+  });
   $('#btn-clusters').addEventListener('click', openDrawer);
   $('#drawer-close').addEventListener('click', closeDrawer);
   $('#scrim').addEventListener('click', function () { closeDrawer(); closeSearch(); });
@@ -1005,6 +1327,7 @@ function boot() {
     applyLang();
     refresh();
     if (state.supplyLabel) state.supplyLabel();
+    if (state.themePaint) state.themePaint();
     if (state.selected) {
       var m = state.missions.filter(function (x) { return x.id === state.selected; })[0];
       if (m) selectMission(m);
@@ -1025,6 +1348,7 @@ function boot() {
   });
 
   loadProducts();
+  loadContacts();
   var whReady = loadWarehouses();
   Promise.all([loadData(), fetch(CFG.REGIONS_URL).then(function (r) { return r.json(); })])
     .then(function (res) {
@@ -1040,6 +1364,7 @@ function boot() {
       spreadPins();
       renderPins();
       installPreviewToggle();
+      installThemeSwitch();
       whReady.then(function () {
         installWarehouseToggle();
         renderWarehouses();
@@ -1188,6 +1513,52 @@ function normProduct(p) {
     /* anything a sheet cell might already hold for this product */
     aliases: [value, nameEn, nameAr, code, legacy].filter(Boolean)
   };
+}
+
+function loadContacts() {
+  var url = (CFG.CONTACTS_CSV_URL || '').trim();
+  if (!url) { state.contacts = {}; return Promise.resolve({}); }
+  return fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') + '_=' + Date.now(),
+                          CFG.CSV_TIMEOUT_MS || 8000)
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    .then(function (txt) {
+      if (/^\s*</.test(txt)) throw new Error('Contacts tab is not public');
+      var by = {};
+      parseCSV(txt).forEach(function (r) {
+        var h = String(r['Hospital Name'] || '').trim();
+        if (!h) return;
+        (by[h] = by[h] || []).push({
+          role: String(r['Role'] || '').trim(),
+          name: String(r['Name'] || '').trim(),
+          phone: String(r['Phone'] || '').trim(),
+          notes: String(r['Notes'] || '').trim()
+        });
+      });
+      state.contacts = by;
+      return by;
+    })
+    .catch(function (e) {
+      console.warn('[TM] contacts unavailable:', e.message);
+      state.contacts = {};
+      return {};
+    });
+}
+
+/* The CSSD manager lives on the hospital row; everyone else on the
+   Contacts tab. Show the manager first, then the rest, without repeats. */
+function contactsFor(m) {
+  var out = [];
+  if (m.manager || m.phone) {
+    out.push({ role: t('manager'), name: m.manager, phone: m.phone, primary: true });
+  }
+  (state.contacts[m.name] || []).forEach(function (c) {
+    var dup = out.some(function (x) {
+      return (x.name && x.name === c.name) ||
+             (x.phone && fmtPhone(x.phone) === fmtPhone(c.phone));
+    });
+    if (!dup) out.push(c);
+  });
+  return out;
 }
 
 function editEnabled() { return !!(CFG.APPS_SCRIPT_URL || '').trim(); }
@@ -1356,7 +1727,7 @@ function openEditForm(m) {
       '<div class="fld"><label class="fld-k" for="f-mgr">' + esc(t('fManager')) + '</label>' +
         '<input class="in" id="f-mgr" data-name="manager" type="text" value="' + esc(m.manager) + '"></div>' +
       '<div class="fld"><label class="fld-k" for="f-phone">' + esc(t('fPhone')) + '</label>' +
-        '<input class="in" id="f-phone" data-name="phone" type="tel" inputmode="tel" value="' + esc(m.phone) + '"></div>' +
+        '<input class="in" id="f-phone" data-name="phone" type="tel" inputmode="tel" value="' + esc(fmtPhone(m.phone)) + '"></div>' +
       '<div class="fld"><label class="fld-k" for="f-date">' + esc(t('fLastVisit')) + '</label>' +
         '<input class="in" id="f-date" data-name="lastVisit" type="date" value="' + esc(todayISO()) + '"></div>' +
       '<div class="fld"><label class="fld-k" for="f-log">' + esc(t('fVisitLog')) + '</label>' +
@@ -1729,8 +2100,8 @@ function contactRow(label, name, phone) {
   if (!name && !phone) return row(label, '');
   return '<div class="row"><span class="row-k">' + esc(label) + '</span><span class="row-v">' +
     (name ? esc(name) : '') +
-    (phone ? (name ? '<br>' : '') + '<a class="tel" href="tel:' + esc(phone.replace(/\s/g, '')) + '">' +
-             esc(phone) + '</a>' : '') +
+    (phone ? (name ? '<br>' : '') + '<a class="tel" href="' + esc(telHref(phone)) + '">' +
+             esc(fmtPhone(phone)) + '</a>' : '') +
     '</span></div>';
 }
 
@@ -1762,8 +2133,8 @@ function selectWarehouse(w) {
       '<div class="rows-head">' + esc(t('serves')) + '</div>' + serves +
     '</div>' +
     '<div class="p-actions">' +
-      (w.phone ? '<a class="act act-call" href="tel:' + esc(w.phone.replace(/\s/g, '')) + '">☎ ' + esc(t('whContactShort')) + '</a>' : '') +
-      (w.custodyPhone ? '<a class="act act-call" href="tel:' + esc(w.custodyPhone.replace(/\s/g, '')) + '">☎ ' + esc(t('custody')) + '</a>' : '') +
+      (w.phone ? '<a class="act act-call" href="' + esc(telHref(w.phone)) + '">☎ ' + esc(t('whContactShort')) + '</a>' : '') +
+      (w.custodyPhone ? '<a class="act act-call" href="' + esc(telHref(w.custodyPhone)) + '">☎ ' + esc(t('custody')) + '</a>' : '') +
       '<a class="act" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
         w.lat + ',' + w.lng + '">➤ ' + t('directions') + '</a>' +
     '</div>' +

@@ -156,6 +156,43 @@ future change to the script degrades to a flat list instead of breaking.
 target (12 — the same as the number of Push products) and is used only when
 the sheet's own `Products Target` cell is blank.
 
+### Contacts
+
+The hospital panel opens with a collapsible **Contacts** section: the CSSD
+manager from the hospital row first, then everyone on the sheet's
+**Contacts** tab (`Hospital Name, Cluster, City, Role, Name, Phone, Notes`),
+read straight from the published CSV — the script has no `?action=contacts`.
+**+ Add contact** posts
+`{hospital_name, add_contact: true, contact_role, contact_name, contact_phone}`.
+
+Phone numbers are normalised for display and for `tel:` links: a bare
+9-digit number gets its leading zero back (`fmtPhone` in `js/app.js`).
+
+### Leaderboard and badges
+
+**🏆 Progress** under the header expands a per-agent strip: hospitals owned,
+what moved **this month** (hospitals whose Last Visit falls in the current
+calendar month, counted at the stage they are at now), and the **total**
+reached per stage. It reads every agent out of the data, so a fourth agent
+appears on their own the day they own a hospital.
+
+A badge is earned per cluster when **all** of that agent's hospitals in it
+pass a stage: 🔵 contacted, 🟠 visited, 🟢 partial, ⭐ activated. Counts sit
+beside the agent's name and tapping one lists its clusters. A badge that
+wasn't there on the last load flashes briefly over the map.
+
+### Themes
+
+**Mission** (dark, default), **Light** (white, for management screens) and
+**Saudi** (national green and white, with Arabic region names drawn on the
+map). The switcher is in the drawer; the choice is remembered in
+localStorage and applies without a reload. Themes are presets in
+[`js/themes.js`](js/themes.js) — `ui: 'light'` drives the light chrome,
+`regionLabels: true` draws the Arabic names.
+
+Panning is limited to `MAX_BOUNDS` in `js/config.js` (Saudi Arabia plus a
+buffer), so the map can't be dragged into empty ocean.
+
 ### Filters, urgency and the quick visit
 
 **Class and Agent filters** sit in a row above the stage legend. They define

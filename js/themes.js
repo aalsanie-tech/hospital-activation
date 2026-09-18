@@ -2,6 +2,25 @@
    and the terrain + fog palette (JS, because those colours are computed).
    Switch with ?preset=<key>, or set PRESET in js/config.js. */
 window.TM_PRESETS = {
+  /* Mission — the team's default dark map */
+  mission: {
+    label: 'Mission',
+    /* fog covers the kingdom only, so the background stays a clean blue and
+       Saudi Arabia reads as a grey slab lifted off it */
+    fog: { color: [74, 77, 82], opacity: 0.46 },
+    fogLandOnly: true,
+    terrain: [
+      [0.00, [150, 154, 160]], [0.25, [126, 168, 156]],
+      [0.55, [96, 206, 150]], [0.80, [112, 236, 158]], [1.00, [176, 255, 204]]
+    ],
+    outFill: '#80848b', outLine: '#ffffff',
+    /* regions outside your territory (Riyadh, Qassim, Eastern): bold white
+       dashes, drawn ABOVE the fog so it cannot dim them */
+    outBorder: { color: '#ffffff', weight: 2.6, opacity: 0.95, dash: '8 6', aboveFog: true },
+    line: 'rgba(232,240,236,',    lineFull: '#e8fff2'
+  },
+
+
 
   /* deep space — the original look, lifted just off pure black */
   midnight: {
@@ -106,5 +125,43 @@ window.TM_PRESETS = {
     ],
     outFill: '#5a5140', outLine: '#b0a07e',
     line: 'rgba(236,226,196,',    lineFull: '#f4ffd8'
+  },
+
+  /* Light — white board for management screens */
+  light: {
+    label: 'Light',
+    fog: { color: [226, 233, 243], opacity: 0.55 },
+    fogLandOnly: true,
+    terrain: [
+      [0.00, [203, 212, 224]], [0.25, [150, 200, 186]],
+      [0.55, [86, 190, 140]], [0.80, [44, 175, 104]], [1.00, [16, 150, 80]]
+    ],
+    outFill: '#d8e0ea', outLine: '#7d8ea6',
+    outBorder: { color: '#5a6b82', weight: 2.4, opacity: 0.9, dash: '8 6', aboveFog: true },
+    line: 'rgba(30,110,70,',      lineFull: '#0f7a44',
+    ui: 'light'
+  },
+
+  /* Saudi — national green and white, Arabic region names */
+  saudi: {
+    label: 'Saudi',
+    fog: { color: [232, 240, 234], opacity: 0.5 },
+    fogLandOnly: true,
+    regionLabels: true,
+    terrain: [
+      [0.00, [214, 223, 217]], [0.25, [162, 203, 178]],
+      [0.55, [92, 176, 124]], [0.80, [36, 146, 86]], [1.00, [0, 108, 53]]
+    ],
+    outFill: '#e4ebe6', outLine: '#8aa294',
+    outBorder: { color: '#0f7b45', weight: 2.4, opacity: 0.95, dash: '8 6', aboveFog: true },
+    line: 'rgba(0,108,53,',       lineFull: '#006C35',
+    ui: 'light'
   }
 };
+
+/* what the theme switcher offers */
+window.TM_THEMES = [
+  { key: 'mission', label: 'Mission', swatch: '#2f62a0' },
+  { key: 'light',   label: 'Light',   swatch: '#e6ecf4' },
+  { key: 'saudi',   label: 'Saudi',   swatch: '#006C35' }
+];

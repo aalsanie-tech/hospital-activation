@@ -60,12 +60,20 @@ window.TM_CONFIG = {
      (it is blank on every row today). */
   PUSH_TARGET: 12,
 
+  /* Contacts tab, read straight from the sheet (the script has no
+     ?action=contacts). New contacts are written through add_contact. */
+  CONTACTS_CSV_URL: 'https://docs.google.com/spreadsheets/d/1HBRcW_MYKdNy-YOjAbpMvYtx7wthTbPTAPlhV4uCKE8/gviz/tq?tqx=out:csv&headers=1&sheet=Contacts',
+  CONTACT_ROLES: ['CSSD Manager', 'CSSD Assistant', 'Planner', 'Purchasing', 'Warehouse', 'Other'],
+
+  /* Saudi Arabia plus a buffer — panning stops at the edge of the map */
+  MAX_BOUNDS: [[15.2, 33.0], [33.4, 56.8]],
+
   /* ── Look ──────────────────────────────────────────────────────────────
      Map preset (see js/themes.js): tactical | tactical-bright | tactical-sharp |
      tactical-steel | tactical-sand | midnight | twilight | desert.
      Any of them can be previewed live without editing this file by adding
      ?preset=twilight to the URL.                                         */
-  PRESET: 'tactical-bright',
+  PRESET: 'mission',
 
   /* ── Map ───────────────────────────────────────────────────────────────*/
   CENTER: [23.5, 42.6],
