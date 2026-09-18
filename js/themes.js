@@ -62,6 +62,8 @@ window.TM_PRESETS = {
     outFill: '#5c4d34', outLine: '#6B5B3E',
     outBorder: { color: '#e8d9b0', weight: 2.4, opacity: 0.92, dash: '8 6', aboveFog: true },
     line: 'rgba(226,196,116,',  lineFull: '#ffe27a',
+    /* won ground glows gold, not green */
+    glow: { 2: [232, 163, 61], 3: [245, 207, 107], 4: [255, 217, 74] },
     ui: 'desert'
   },
 

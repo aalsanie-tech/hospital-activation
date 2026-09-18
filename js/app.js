@@ -89,6 +89,7 @@ function applyPreset(key) {
     state.fog.options.opacity = f.opacity != null ? f.opacity : CFG.FOG_OPACITY;
     state.fog.options.tint = f.color;
     state.fog.options.landOnly = !!P[key].fogLandOnly;
+    state.fog.options.glow = P[key].glow;
     state.fog.setLand(P[key].fogLandOnly ? landRings() : []);
   }
   refresh();
@@ -866,6 +867,7 @@ function updateFog(st, base) {
       pane: 'fogPane',
       opacity: (P.fog && P.fog.opacity != null) ? P.fog.opacity : CFG.FOG_OPACITY,
       tint: P.fog && P.fog.color,
+      glow: P.glow,
       landOnly: !!P.fogLandOnly,
       radiusKm: CFG.FOG_RADIUS_KM
     }).addTo(state.map);

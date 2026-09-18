@@ -8,6 +8,7 @@ L.FogLayer = L.Layer.extend({
     padding: 0.35,      // extra canvas around the viewport, as a fraction
     opacity: 0.9,
     tint: null,                       // [r,g,b] base colour of the fog
+    glow: null,                       // {2,3,4: [r,g,b]} won-ground glow per stage
     landOnly: false,                  // clip the fog to the land polygons
     radiusKm: { 1: 26, 2: 42, 3: 62, 4: 95 },
     minRadiusPx: 16,
@@ -208,7 +209,8 @@ L.FogLayer = L.Layer.extend({
       if (!regs[ri].full) continue;
       ctx.save();
       ctx.filter = 'blur(10px)';
-      ctx.fillStyle = 'rgba(34,255,136,0.10)';
+      var fullGlow = (o.glow && o.glow[4]) || [34, 255, 136];
+      ctx.fillStyle = 'rgba(' + fullGlow.join(',') + ',0.10)';
       this._tracePath(ctx, regs[ri].rings, pad);
       ctx.fill('evenodd');
       ctx.restore();
@@ -219,9 +221,10 @@ L.FogLayer = L.Layer.extend({
       var gp = this._map.latLngToContainerPoint([p.lat, p.lng]).add(pad);
       r = Math.max(o.minRadiusPx, Math.min(o.maxRadiusPx, (o.radiusKm[p.stage] || 26) * ppk)) * 0.7;
       if (gp.x < -r || gp.y < -r || gp.x > w + r || gp.y > h + r) continue;
-      var tint = p.stage === 4 ? [34, 255, 136, 0.12]
-               : p.stage === 3 ? [134, 239, 172, 0.09]
-               : [251, 191, 36, 0.07];
+      var glow = o.glow || {};
+      var tint = p.stage === 4 ? (glow[4] || [34, 255, 136]).concat([0.12])
+               : p.stage === 3 ? (glow[3] || [134, 239, 172]).concat([0.09])
+               : (glow[2] || [251, 191, 36]).concat([0.07]);
       var gl = ctx.createRadialGradient(gp.x, gp.y, 0, gp.x, gp.y, r);
       gl.addColorStop(0, 'rgba(' + tint[0] + ',' + tint[1] + ',' + tint[2] + ',' + tint[3] + ')');
       gl.addColorStop(1, 'rgba(' + tint[0] + ',' + tint[1] + ',' + tint[2] + ',0)');

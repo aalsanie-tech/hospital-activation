@@ -1012,3 +1012,22 @@ body.low-power .urg-expired .pin-ring{animation:none}
   color:var(--ink-mute); border:1px solid var(--line); border-radius:20px; padding:1px 6px;
   margin-inline-start:6px; vertical-align:1px;
 }
+/* depots read as ivory outposts on sand, not cold blue */
+:root[data-preset="desert"] .wh{
+  background:linear-gradient(160deg,#4a3c26,#241c10);
+  border-color:#e8d9b0; box-shadow:0 0 12px #e8d9b066,0 2px 6px #0009;
+}
+:root[data-preset="desert"] .wh-glyph{color:#f6e7c4;text-shadow:0 0 8px #e8d9b0}
+:root[data-preset="desert"] .pin-star{color:#fff1b8;text-shadow:0 0 8px #ffd94a,0 0 16px #ffd94a88}
+/* the conquered-region pulse animates its own filter, so Desert needs its
+   own keyframes or the green one wins */
+:root[data-preset="desert"] .region-conquered{animation:regionGlowGold 3.4s ease-in-out infinite}
+@keyframes regionGlowGold{
+  0%,100%{filter:drop-shadow(0 0 8px #ffd94a88)}
+  50%{filter:drop-shadow(0 0 22px #ffd94ad0)}
+}
+:root[data-preset="saudi"] .region-conquered{animation:regionGlowSaudi 3.4s ease-in-out infinite}
+@keyframes regionGlowSaudi{
+  0%,100%{filter:drop-shadow(0 0 8px #006C3588)}
+  50%{filter:drop-shadow(0 0 20px #0f9b55cc)}
+}
