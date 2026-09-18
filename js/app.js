@@ -1152,12 +1152,11 @@ function loadProducts() {
   });
 }
 
-/* The products endpoint has shipped two different field layouts: once as
-   {name, category: Push|Selective|Inform, code}, and once with the values
-   shuffled (name holding the code, category holding the Arabic name).
-   Rather than hard-code either, label each item with its Arabic text when
-   there is any, keep the rest as codes, and only group by "category" when
-   that field actually behaves like a group (i.e. it repeats). */
+/* Products come back as {code, name_ar, name_en, category, moh, nupco}.
+   Agents read the Arabic name; the sheet stores "English name — code" so
+   the column stays orderable. Older payloads (name/category/code, or the
+   shuffled variant) are still accepted so a script change can't blank the
+   picker. */
 function normProduct(p) {
   var pick = function () {
     for (var i = 0; i < arguments.length; i++) {
@@ -1166,17 +1165,28 @@ function normProduct(p) {
     }
     return '';
   };
-  var name = pick('name', 'Product Name', 'product'),
-      cat = pick('category', 'Category'),
-      code = pick('code', 'Catalogue Number', 'catalogue', 'nupco', 'moh');
   var arabic = /[\u0600-\u06FF]/;
-  var all = [name, cat, code].filter(Boolean);
-  var label = all.filter(function (v) { return arabic.test(v); })[0] || name || all[0] || '';
+  var code = pick('code', 'Catalogue Number', 'catalogue');
+  var nameAr = pick('name_ar', 'nameAr');
+  var nameEn = pick('name_en', 'nameEn');
+  var cat = pick('category', 'Category');
+  var legacy = pick('name', 'Product Name');
+
+  if (!nameAr && arabic.test(legacy)) nameAr = legacy;
+  if (!nameAr && arabic.test(cat)) { nameAr = cat; cat = ''; }          // shuffled payload
+  if (!nameEn && legacy && !arabic.test(legacy) && legacy !== code) nameEn = legacy;
+  if (!code && legacy && !arabic.test(legacy)) code = legacy;
+
+  var label = nameAr || nameEn || code;
+  /* what lands in the sheet's Shortage Items */
+  var value = (nameEn && code) ? nameEn + ' — ' + code : (nameEn || code || label);
+  var moh = pick('moh', 'MOH', 'moh_code'), nupco = pick('nupco', 'Nupco', 'nupco_code');
+
   return {
-    label: label,
-    codes: all.filter(function (v) { return v !== label; }),
-    group: cat,
-    name: name, category: cat, code: code
+    label: label, value: value, code: code, nameEn: nameEn, nameAr: nameAr,
+    group: cat, moh: moh, nupco: nupco,
+    /* anything a sheet cell might already hold for this product */
+    aliases: [value, nameEn, nameAr, code, legacy].filter(Boolean)
   };
 }
 
@@ -1210,25 +1220,37 @@ function productPicker(selectedCsv) {
       '<input type="text" class="in" data-name="shortage" value="' + esc(chosen.join(', ')) + '"></div>';
   }
 
-  /* only a repeating "category" is a real grouping */
+  /* only a repeating category is a real grouping */
   var counts = {};
   list.forEach(function (p) { if (p.group) counts[p.group] = (counts[p.group] || 0) + 1; });
   var groups = Object.keys(counts);
   var grouped = groups.length > 1 && groups.some(function (g) { return counts[g] > 1; });
 
+  /* a cell may hold the new "name — code", or just a name or code from before */
+  var isChosen = function (p) {
+    return chosen.some(function (c) {
+      return p.aliases.some(function (a) { return a === c; });
+    });
+  };
   var chipFor = function (p) {
-    var on = chosen.indexOf(p.label) > -1;
-    return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-p="' + esc(p.label) + '" ' +
-      'title="' + esc(p.codes.join(' · ')) + '" dir="auto">' + esc(p.label) +
-      (p.codes.length ? '<em>' + esc(p.codes[0]) + '</em>' : '') + '</button>';
+    var codes = [p.code, p.moh && 'MOH ' + p.moh, p.nupco && 'Nupco ' + p.nupco].filter(Boolean);
+    return '<button type="button" class="chip' + (isChosen(p) ? ' on' : '') + '" ' +
+      'data-p="' + esc(p.value) + '" title="' + esc([p.nameEn].concat(codes).join(' · ')) + '" dir="auto">' +
+      esc(p.label) + (p.code ? '<em>' + esc(p.code) + '</em>' : '') + '</button>';
   };
 
   var body;
   if (grouped) {
-    var cats = [];
-    list.forEach(function (p) { if (cats.indexOf(p.group) === -1) cats.push(p.group); });
+    var order = ['Push', 'Selective', 'Inform'];
+    var cats = groups.slice().sort(function (a, b) {
+      var ia = order.indexOf(a), ib = order.indexOf(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
     body = cats.map(function (c) {
-      return '<div class="pick-cat">' + esc(c) + '</div><div class="pick-row">' +
+      return '<div class="pick-cat">' + esc(c) + ' <b>' + counts[c] + '</b></div><div class="pick-row">' +
         list.filter(function (p) { return p.group === c; }).map(chipFor).join('') + '</div>';
     }).join('');
   } else {

@@ -504,9 +504,12 @@ select.in{
   padding:8px; max-height:210px; overflow-y:auto; -webkit-overflow-scrolling:touch;
 }
 .pick-cat{
+  display:flex; align-items:center; gap:6px;
   font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-mute);
-  margin:6px 2px 5px; font-family:var(--font-hud);
+  margin:9px 2px 5px; font-family:var(--font-hud);
 }
+.pick-cat b{color:var(--ink-dim);font-size:9.5px}
+.pick-cat::after{content:'';flex:1;height:1px;background:#16273a}
 .pick-cat:first-child{margin-top:2px}
 .pick-row{display:flex;flex-wrap:wrap;gap:5px}
 .chip{

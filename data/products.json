@@ -1,159 +1,252 @@
 {
  "products": [
   {
-   "name": "KPCD224-C",
-   "category": "حزمة مؤشر بيولوجي للبخار",
-   "code": "BI Steam Challenge Pack"
+   "code": "KPCD224-C",
+   "name_ar": "حزمة مؤشر بيولوجي للبخار",
+   "name_en": "BI Steam Challenge Pack",
+   "category": "Push",
+   "moh": 124990157,
+   "nupco": 4228190203400
   },
   {
-   "name": "BT224",
-   "category": "مؤشر حيوي للبخار",
-   "code": "Biological Indicator (steam)"
+   "code": "BT224",
+   "name_ar": "مؤشر حيوي للبخار",
+   "name_en": "Biological Indicator (steam)",
+   "category": "Push",
+   "moh": 124990044,
+   "nupco": 4228180301200
   },
   {
-   "name": "BT96",
-   "category": "مؤشر بيولوجي للبلازما",
-   "code": "Biological Indicator (plasma)"
+   "code": "BT96",
+   "name_ar": "مؤشر بيولوجي للبلازما",
+   "name_en": "Biological Indicator (plasma)",
+   "category": "Push",
+   "moh": 124990049,
+   "nupco": 4228180300900
   },
   {
-   "name": "GUL Ultra Pouches",
-   "category": "رولات الترا بخار وبلازما",
-   "code": "Ultra Pouch (Steam + Plasma)"
+   "code": "GUL Ultra Pouches",
+   "name_ar": "رولات الترا بخار وبلازما",
+   "name_en": "Ultra Pouch (Steam + Plasma)",
+   "category": "Push",
+   "moh": "Multiple",
+   "nupco": "Multiple"
   },
   {
-   "name": "BTB003",
-   "category": "صندوق نقل أزرق",
-   "code": "Transport Box Blue 400x300x220mm"
+   "code": "BTB003",
+   "name_ar": "صندوق نقل أزرق",
+   "name_en": "Transport Box Blue 400x300x220mm",
+   "category": "Push",
+   "moh": 124990203,
+   "nupco": 4228190001000
   },
   {
-   "name": "RTB003",
-   "category": "صندوق نقل أحمر",
-   "code": "Transport Box Red 400x300x220mm"
+   "code": "RTB003",
+   "name_ar": "صندوق نقل أحمر",
+   "name_en": "Transport Box Red 400x300x220mm",
+   "category": "Push",
+   "moh": 124990102,
+   "nupco": 4228200001000
   },
   {
-   "name": "RTB004A",
-   "category": "صندوق نقل أحمر كبير",
-   "code": "Transport Box Red 600x400x329mm"
+   "code": "RTB004A",
+   "name_ar": "صندوق نقل أحمر كبير",
+   "name_en": "Transport Box Red 600x400x329mm",
+   "category": "Push",
+   "moh": 124990103,
+   "nupco": 4228200000800
   },
   {
-   "name": "J101B",
-   "category": "محلول إنزيمي ٥ لتر",
-   "code": "Enzymatic 5L"
+   "code": "J101B",
+   "name_ar": "محلول إنزيمي ٥ لتر",
+   "name_en": "Enzymatic 5L",
+   "category": "Push",
+   "moh": 124990055,
+   "nupco": 4228170406100
   },
   {
-   "name": "J71D",
-   "category": "محلول معادل ٢٠ لتر",
-   "code": "Rinse Aid 20L"
+   "code": "J71D",
+   "name_ar": "محلول معادل ٢٠ لتر",
+   "name_en": "Rinse Aid 20L",
+   "category": "Push",
+   "moh": 124990222,
+   "nupco": 4228170405900
   },
   {
-   "name": "J92C",
-   "category": "بخاخ تشحيم الأدوات",
-   "code": "Spray Lubricant 400mL"
+   "code": "J92C",
+   "name_ar": "بخاخ تشحيم الأدوات",
+   "name_en": "Spray Lubricant 400mL",
+   "category": "Push",
+   "moh": 124990071,
+   "nupco": 4228170400300
   },
   {
-   "name": 308100,
-   "category": "قطع حماية لاطراف الأدوات",
-   "code": "Guard Tip Protector (kit)"
+   "code": 308100,
+   "name_ar": "قطع حماية لاطراف الأدوات",
+   "name_en": "Guard Tip Protector (kit)",
+   "category": "Push",
+   "moh": 124990146,
+   "nupco": 4228152102100
   },
   {
-   "name": "PPT007C",
-   "category": "ورق واقي أطراف الأدوات",
-   "code": "Point Protector 15mm"
+   "code": "PPT007C",
+   "name_ar": "ورق واقي أطراف الأدوات",
+   "name_en": "Point Protector 15mm",
+   "category": "Push",
+   "moh": 124991030,
+   "nupco": 4228190700900
   },
   {
-   "name": "J100E",
-   "category": "محلول إنزيمي ٢١٠ لتر",
-   "code": "Enzymatic 210L"
+   "code": "J100E",
+   "name_ar": "محلول إنزيمي ٢١٠ لتر",
+   "name_en": "Enzymatic 210L",
+   "category": "Selective",
+   "moh": 124990214,
+   "nupco": 4228170406200
   },
   {
-   "name": "J77E",
-   "category": "محلول قلوي ٢١٠ لتر",
-   "code": "Alkaline 210L"
+   "code": "J77E",
+   "name_ar": "محلول قلوي ٢١٠ لتر",
+   "name_en": "Alkaline 210L",
+   "category": "Selective",
+   "moh": 124990056,
+   "nupco": 4228170405800
   },
   {
-   "name": "IT27-4YS",
-   "category": "مؤشر كيميائي للبخار الدرجة ٦",
-   "code": "Chemical Indicator Type 6"
+   "code": "IT27-4YS",
+   "name_ar": "مؤشر كيميائي للبخار الدرجة ٦",
+   "name_en": "Chemical Indicator Type 6",
+   "category": "Inform",
+   "moh": 124990050,
+   "nupco": 4228152801500
   },
   {
-   "name": "CD40",
-   "category": "مؤشر كيميائي للبلازما",
-   "code": "Chemical Indicator Plasma Type 4"
+   "code": "CD40",
+   "name_ar": "مؤشر كيميائي للبلازما",
+   "name_en": "Chemical Indicator Plasma Type 4",
+   "category": "Inform",
+   "moh": 124990048,
+   "nupco": 4228180000700
   },
   {
-   "name": "FP092",
-   "category": "كيس تعقيم ذاتي الإغلاق ٩×١١ سم",
-   "code": "Sterilization Pouch 9x11cm"
+   "code": "FP092",
+   "name_ar": "كيس تعقيم ذاتي الإغلاق ٩×١١ سم",
+   "name_en": "Sterilization Pouch 9x11cm",
+   "category": "Inform",
+   "moh": 126750125,
+   "nupco": 4228190410000
   },
   {
-   "name": "FP122",
-   "category": "كيس تعقيم ذاتي الإغلاق ١٢×٢٢ سم",
-   "code": "Sterilization Pouch 12x22cm"
+   "code": "FP122",
+   "name_ar": "كيس تعقيم ذاتي الإغلاق ١٢×٢٢ سم",
+   "name_en": "Sterilization Pouch 12x22cm",
+   "category": "Inform",
+   "moh": 126750126,
+   "nupco": 4228190410100
   },
   {
-   "name": "FP160",
-   "category": "كيس تعقيم ذاتي الإغلاق ١٦×٢٢ سم",
-   "code": "Sterilization Pouch 16.5x22.5cm"
+   "code": "FP160",
+   "name_ar": "كيس تعقيم ذاتي الإغلاق ١٦×٢٢ سم",
+   "name_en": "Sterilization Pouch 16.5x22.5cm",
+   "category": "Inform",
+   "moh": 126750127,
+   "nupco": 4228152101500
   },
   {
-   "name": "OS140140",
-   "category": "قماش تغليف ١٤٠×١٤٠ سم",
-   "code": "Wrap Sheet SMS 140x140cm"
+   "code": "OS140140",
+   "name_ar": "قماش تغليف ١٤٠×١٤٠ سم",
+   "name_en": "Wrap Sheet SMS 140x140cm",
+   "category": "Inform",
+   "moh": 137390110,
+   "nupco": 4228190204200
   },
   {
-   "name": "OS100100",
-   "category": "قماش تغليف ١٠٠×١٠٠ سم",
-   "code": "Wrap Sheet SMS 100x100cm"
+   "code": "OS100100",
+   "name_ar": "قماش تغليف ١٠٠×١٠٠ سم",
+   "name_en": "Wrap Sheet SMS 100x100cm",
+   "category": "Inform",
+   "moh": 124990149,
+   "nupco": 4228190201900
   },
   {
-   "name": "RF50",
-   "category": "رول تغليف للبخار ٥ سم",
-   "code": "Sterilization Roll Flat 5cm"
+   "code": "RF50",
+   "name_ar": "رول تغليف للبخار ٥ سم",
+   "name_en": "Sterilization Roll Flat 5cm",
+   "category": "Inform",
+   "moh": 124990121,
+   "nupco": 4231210805600
   },
   {
-   "name": "RF100",
-   "category": "رول تغليف للبخار ١٠ سم",
-   "code": "Sterilization Roll Flat 10cm"
+   "code": "RF100",
+   "name_ar": "رول تغليف للبخار ١٠ سم",
+   "name_en": "Sterilization Roll Flat 10cm",
+   "category": "Inform",
+   "moh": 124990122,
+   "nupco": 4231210805700
   },
   {
-   "name": "RF200",
-   "category": "رول تغليف للبخار ٢٠ سم",
-   "code": "Sterilization Roll Flat 20cm"
+   "code": "RF200",
+   "name_ar": "رول تغليف للبخار ٢٠ سم",
+   "name_en": "Sterilization Roll Flat 20cm",
+   "category": "Inform",
+   "moh": 124990124,
+   "nupco": 4231210805900
   },
   {
-   "name": "RF250",
-   "category": "رول تغليف للبخار ٢٥ سم",
-   "code": "Sterilization Roll Flat 25cm"
+   "code": "RF250",
+   "name_ar": "رول تغليف للبخار ٢٥ سم",
+   "name_en": "Sterilization Roll Flat 25cm",
+   "category": "Inform",
+   "moh": 124990125,
+   "nupco": 4231210808100
   },
   {
-   "name": "RP250",
-   "category": "رول بلازما ٢٥ سم",
-   "code": "Sterilization Roll Plasma 25cm"
+   "code": "RP250",
+   "name_ar": "رول بلازما ٢٥ سم",
+   "name_en": "Sterilization Roll Plasma 25cm",
+   "category": "Inform",
+   "moh": 124990126,
+   "nupco": 4228180802000
   },
   {
-   "name": 1008,
-   "category": "ملصق معلومات للحاويات",
-   "code": "Seal Protocol Label White"
+   "code": 1008,
+   "name_ar": "ملصق معلومات للحاويات",
+   "name_en": "Seal Protocol Label White",
+   "category": "Inform",
+   "moh": 124990117,
+   "nupco": 4228152802200
   },
   {
-   "name": "FBC3-B350-22",
-   "category": "فرشة تجاويف",
-   "code": "Cleaning Brush Channel 22mm"
+   "code": "FBC3-B350-22",
+   "name_ar": "فرشة تجاويف",
+   "name_en": "Cleaning Brush Channel 22mm",
+   "category": "Inform",
+   "moh": 124990066,
+   "nupco": 4231154606200
   },
   {
-   "name": "FBC5-D01",
-   "category": "فرشة نايلون طرفين",
-   "code": "Cleaning Brush Double Head"
+   "code": "FBC5-D01",
+   "name_ar": "فرشة نايلون طرفين",
+   "name_en": "Cleaning Brush Double Head",
+   "category": "Inform",
+   "moh": 124990067,
+   "nupco": 4231154606100
   },
   {
-   "name": "FBC5-T003",
-   "category": "فرشة نايلون",
-   "code": "Cleaning Brush Tooth Nylon"
+   "code": "FBC5-T003",
+   "name_ar": "فرشة نايلون",
+   "name_en": "Cleaning Brush Tooth Nylon",
+   "category": "Inform",
+   "moh": 124990066,
+   "nupco": 4231154607600
   },
   {
-   "name": "LT450",
-   "category": "بطاقة إصلاح أدوات",
-   "code": "Locking Tags Red REPAIR"
+   "code": "LT450",
+   "name_ar": "بطاقة إصلاح أدوات",
+   "name_en": "Locking Tags Red REPAIR",
+   "category": "Inform",
+   "moh": 124990144,
+   "nupco": 4228190206000
   }
  ]
 }

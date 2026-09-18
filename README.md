@@ -138,22 +138,23 @@ name as the key for the next save.
 
 ### Products and the push target
 
-`?action=products` has shipped two different field layouts: once as
-`{name, category: Push|Selective|Inform, code}`, and once with the values
-shuffled (`name` holding the code, `category` holding the Arabic name).
-`normProduct()` in `js/app.js` therefore labels each item with its Arabic
-text when there is any, keeps the other values as codes shown under the
-label, and groups by `category` **only when that field repeats** — so a
-list of 31 unique "categories" renders flat instead of 31 groups of one.
-Fix the script's mapping and grouping comes back on its own.
+`?action=products` returns `{code, name_ar, name_en, category, moh, nupco}`
+for 31 items. The picker groups by `category` (Push / Selective / Inform, in
+that order), labels each chip with the Arabic name and its code, and puts
+the English name plus the MOH and Nupco numbers in the chip's tooltip.
 
-What the picker sends as `shortage_items` is the label the agent sees
-(currently the Arabic name). Switch it to the code in `chipFor()` if the
-sheet should carry catalogue numbers instead.
+`Shortage Items` is written as **`name_en — code`**, e.g.
+`BI Steam Challenge Pack — KPCD224-C`. Cells written before this — a bare
+code, an English name or an Arabic name — still tick the right chip, so
+older rows keep working (`aliases` in `normProduct`).
+
+`normProduct()` also accepts the two earlier payload shapes the endpoint has
+served, and the picker only groups when `category` actually repeats, so a
+future change to the script degrades to a flat list instead of breaking.
 
 `PUSH_TARGET` in [`js/config.js`](js/config.js) mirrors the script's push
-target (12) and is used only when the sheet's own `Products Target` cell is
-blank — which it is on every row today.
+target (12 — the same as the number of Push products) and is used only when
+the sheet's own `Products Target` cell is blank.
 
 ### Filters, urgency and the quick visit
 
