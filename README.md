@@ -180,8 +180,16 @@ into a form.
 
 ### Leaderboard and badges
 
-**🏆 Progress** under the header expands a per-agent strip: hospitals owned,
-what moved **this month**, and the **total** reached per stage.
+**🏆 Progress** under the header opens a stats screen: a scrollable month
+selector (last three months, this one, then the rest of the year greyed
+out), and a card per agent ranked 🥇🥈🥉 by the share of their hospitals
+that are no longer Locked. Each card carries the agent's name, badge icons,
+a segmented bar of their stages, that month's transitions and their
+all-time totals.
+
+Accent colours inside the panel are blue for contacted and green for
+visited, which is deliberate but differs from the map legend, where Visited
+is amber.
 
 "This month" counts real transitions from `?action=history&month=YYYY-MM`,
 so a hospital that went Locked → Contact → Visited inside one month counts

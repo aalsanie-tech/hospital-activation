@@ -116,7 +116,8 @@ var state = window.TM = {
   products: [], warehouses: [], supplyLayers: [], showSupply: true,
   preset: null, spread: {}, contacts: {}, contactsFresh: {}, contactDelete: null, contactsOpen: false,
   leaderboardOpen: false, badgeDetail: null, labelLayer: null,
-  history: [], historyOk: false, monthEstimated: false
+  history: [], historyOk: false, monthEstimated: false,
+  historyByMonth: {}, selectedMonth: null, monthLoading: null
 };
 
 /* ════════════════════════════════════════ CSV ═══ */
@@ -489,11 +490,11 @@ var BADGE_TIERS = [
    transitions is the only way "+1 contacted AND +1 visited" can be right
    for a hospital that moved twice in one month — current-stage counting
    can only ever see where it ended up. */
-function loadHistory() {
+function loadHistory(month) {
   var url = (CFG.APPS_SCRIPT_URL || '').trim();
-  state.historyOk = false;
-  if (!url) { state.history = []; return Promise.resolve([]); }
-  var month = currentMonthKey();
+  month = month || currentMonthKey();
+  if (!url) { state.historyByMonth[month] = []; return Promise.resolve([]); }
+  state.monthLoading = month;
   return fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') +
                           'action=history&month=' + encodeURIComponent(month),
                           CFG.CSV_TIMEOUT_MS || 8000)
@@ -501,7 +502,7 @@ function loadHistory() {
     .then(function (j) {
       if (!j || j.success !== true) throw new Error((j && j.error) || 'history unavailable');
       var raw = j.transitions || j.history || j.entries || [];
-      state.history = raw.map(function (h) {
+      var list = raw.map(function (h) {
         return {
           date: String(h.date || h.Date || '').slice(0, 10),
           hospital: String(h.hospital || h.Hospital || '').trim(),
@@ -510,16 +511,40 @@ function loadHistory() {
           to: parseStage(h.to != null ? h.to : h.to_stage)
         };
       }).filter(function (h) { return h.hospital || h.agent; });
-      state.historyOk = true;
-      state.historyMonth = month;
-      return state.history;
+      state.historyByMonth[month] = list;
+      if (month === currentMonthKey()) { state.history = list; state.historyOk = true; }
+      return list;
     })
     .catch(function (e) {
-      console.warn('[TM] stage history unavailable:', e.message);
-      state.history = [];
-      state.historyOk = false;
+      console.warn('[TM] stage history (' + month + ') unavailable:', e.message);
+      state.historyByMonth[month] = [];
+      if (month === currentMonthKey()) { state.history = []; state.historyOk = false; }
       return [];
+    })
+    .then(function (list) {
+      if (state.monthLoading === month) state.monthLoading = null;
+      return list;
     });
+}
+
+/* months to offer: the last three, this one, and the rest of the year */
+function monthOptions() {
+  var now = new Date(), out = [];
+  var d = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  var end = new Date(now.getFullYear(), 11, 1);
+  var names = t('months');
+  while (d <= end) {
+    var y = d.getFullYear(), mo = d.getMonth();
+    out.push({
+      key: y + '-' + ('0' + (mo + 1)).slice(-2),
+      label: (names && names[mo]) || (mo + 1),
+      year: y,
+      future: y > now.getFullYear() || (y === now.getFullYear() && mo > now.getMonth()),
+      current: y === now.getFullYear() && mo === now.getMonth()
+    });
+    d = new Date(y, mo + 1, 1);
+  }
+  return out;
 }
 
 function refreshHistory() {
@@ -535,34 +560,42 @@ function currentMonthKey() {
    badge for every cluster where ALL of that agent's hospitals passed a
    stage. "This month" counts hospitals whose Last Visit falls in the
    current calendar month, grouped by the stage they are at now. */
-function agentStats(list) {
-  var mk = currentMonthKey(), byAgent = {};
-  var useHistory = state.historyOk && (state.history || []).length > 0;
-  state.monthEstimated = !useHistory;
+function agentStats(list, month) {
+  var mk = currentMonthKey();
+  month = month || state.selectedMonth || mk;
+  var hist = state.historyByMonth[month];
+  var useHistory = !!(hist && hist.length);
+  /* only this month can be estimated from Last Visit; older months without
+     logged transitions are genuinely empty */
+  state.monthEstimated = !useHistory && month === mk && !!state.historyOk;
+  var byAgent = {};
   list.forEach(function (m) {
     var a = m.agent || '—';
     var s = byAgent[a] || (byAgent[a] = {
-      agent: a, total: 0, reached: [0, 0, 0, 0, 0], month: [0, 0, 0, 0, 0], clusters: {}
+      agent: a, total: 0, reached: [0, 0, 0, 0, 0], exact: [0, 0, 0, 0, 0],
+      month: [0, 0, 0, 0, 0], clusters: {}, score: 0
     });
     s.total++;
     var st = stageOf(m);
+    s.exact[st]++;
+    s.score += st;
     for (var i = 0; i <= st; i++) s.reached[i]++;
     /* fallback only: where a hospital visited this month stands now */
-    if (!useHistory && String(m.lastVisit || '').slice(0, 7) === mk) s.month[st]++;
+    if (state.monthEstimated && String(m.lastVisit || '').slice(0, 7) === mk) s.month[st]++;
     var c = s.clusters[m.cluster] ||
       (s.clusters[m.cluster] = { name: m.cluster, short: m.clusterShort || m.cluster, total: 0, min: 4 });
     c.total++;
     if (st < c.min) c.min = st;
   });
   if (useHistory) {
-    (state.history || []).forEach(function (h) {
+    hist.forEach(function (h) {
       var s = byAgent[h.agent];
       if (!s || !h.to) return;
       s.month[h.to]++;                       // one count per transition, not per hospital
     });
   }
 
-  return Object.keys(byAgent).sort().map(function (a) {
+  var out = Object.keys(byAgent).map(function (a) {
     var s = byAgent[a];
     s.badges = {};
     BADGE_TIERS.forEach(function (tier) { s.badges[tier.key] = []; });
@@ -572,8 +605,17 @@ function agentStats(list) {
         if (c.min >= tier.minStage) s.badges[tier.key].push(c.short);
       });
     });
+    s.activePct = s.total ? Math.round((s.reached[1] / s.total) * 100) : 0;
     return s;
   });
+  /* rank by the number the card actually shows, so the order reads true;
+     depth of progress only breaks ties */
+  out.sort(function (a, b) {
+    return b.activePct - a.activePct ||
+           (b.score / (b.total || 1)) - (a.score / (a.total || 1)) ||
+           a.agent.localeCompare(b.agent);
+  });
+  return out;
 }
 
 function badgeKeys(stats) {
@@ -952,41 +994,93 @@ function shortAgent(name) {
 function renderLeaderboard() {
   var el = $('#leaderboard'), btn = $('#lb-toggle');
   if (!el || !btn) return;
-  var stats = agentStats(state.missions);
+  if (!state.selectedMonth) state.selectedMonth = currentMonthKey();
+  var month = state.selectedMonth;
+  var stats = agentStats(state.missions, month);
   btn.setAttribute('aria-expanded', !!state.leaderboardOpen);
   btn.classList.toggle('on', !!state.leaderboardOpen);
   el.hidden = !state.leaderboardOpen;
   if (!state.leaderboardOpen) return;
 
+  var opts = monthOptions();
+  var chosen = opts.filter(function (o) { return o.key === month; })[0] || opts[0];
+  var monthTitle = chosen ? chosen.label + ' ' + chosen.year : month;
+  var loading = state.monthLoading === month;
   var label = ['locked', 'contacted', 'visited', 'partial', 'activated'];
-  el.innerHTML = stats.map(function (s) {
+  var medals = ['🥇', '🥈', '🥉'];
+
+  var monthRow = '<div class="lb-months">' + opts.map(function (o) {
+    return '<button type="button" class="mchip' + (o.key === month ? ' on' : '') +
+      (o.future ? ' future' : '') + '" data-month="' + o.key + '"' +
+      (o.future ? ' disabled aria-disabled="true"' : '') + '>' + esc(o.label) + '</button>';
+  }).join('') + '</div>';
+
+  var cards = stats.map(function (s, i) {
     var badges = BADGE_TIERS.map(function (tier) {
       var n = s.badges[tier.key].length;
       return n ? '<button type="button" class="badge" data-agent="' + esc(s.agent) +
-        '" data-tier="' + tier.key + '">' + tier.icon + '<b>×' + n + '</b></button>' : '';
+        '" data-tier="' + tier.key + '" title="' + esc(tier.key) + '">' +
+        '<span class="badge-icon">' + tier.icon + '</span><b>×' + n + '</b></button>' : '';
     }).join('');
-    var month = [1, 2, 3, 4].filter(function (i) { return s.month[i]; })
-      .map(function (i) { return '+' + s.month[i] + ' ' + t(label[i]); }).join(' · ') || '—';
-    var total = [1, 2, 3, 4].filter(function (i) { return s.reached[i]; })
-      .map(function (i) { return s.reached[i] + '/' + s.total + ' ' + t(label[i]); }).join(' · ') ||
-      ('0/' + s.total);
+
+    var segs = [1, 2, 3, 4].map(function (st) {
+      var w = s.total ? (s.exact[st] / s.total) * 100 : 0;
+      return w ? '<i class="seg c' + st + '" style="width:' + w.toFixed(2) + '%"></i>' : '';
+    }).join('');
+
+    var monthTxt = loading
+      ? '<span class="lb-loading">' + esc(t('loadingLbl')) + '</span>'
+      : ([1, 2, 3, 4].filter(function (n) { return s.month[n]; })
+          .map(function (n) {
+            return '<b class="c' + n + '">+' + s.month[n] + ' ' + esc(t(label[n])) + '</b>';
+          }).join(' · ') || '<span class="lb-none">—</span>');
+
+    var totalTxt = [1, 2, 3, 4].filter(function (n) { return s.reached[n]; })
+      .map(function (n) {
+        return '<b class="c' + n + '">' + s.reached[n] + '</b><span class="lb-of">/' + s.total + '</span> ' +
+               esc(t(label[n]));
+      }).join(' · ') || ('0/' + s.total);
+
     var detail = '';
     if (state.badgeDetail && state.badgeDetail.agent === s.agent) {
       var tier = BADGE_TIERS.filter(function (x) { return x.key === state.badgeDetail.tier; })[0];
       detail = '<div class="badge-detail">' + (tier ? tier.icon + ' ' : '') +
         esc(s.badges[state.badgeDetail.tier].join(' · ')) + '</div>';
     }
-    var est = state.monthEstimated ? ' <em class="lb-est">' + esc(t('estTag')) + '</em>' : '';
-    return '<div class="lb-row">' +
-      '<div class="lb-top"><span class="lb-name" dir="auto">' + esc(s.agent) +
-        ' <em>(' + s.total + ' ' + esc(t('hospitalsLbl')) + ')</em></span>' +
-        '<span class="lb-badges">' + (badges || '') + '</span></div>' +
-      '<div class="lb-line"><b>' + esc(t('thisMonth')) + ':</b> ' + esc(month) + est + '</div>' +
-      '<div class="lb-line"><b>' + esc(t('totalLbl')) + ':</b> ' + esc(total) + '</div>' +
+
+    return '<div class="lb-card' + (i === 0 ? ' lb-first' : '') + '">' +
+      '<div class="lb-head">' +
+        '<span class="lb-rank">' + (medals[i] || (i + 1)) + '</span>' +
+        '<span class="lb-name" dir="auto">' + esc(s.agent) + '</span>' +
+        '<span class="lb-badges">' + badges + '</span>' +
+      '</div>' +
+      '<div class="lb-bar">' + segs + '</div>' +
+      '<div class="lb-meta"><b>' + s.activePct + '%</b> ' + esc(t('activeLbl')) +
+        ' <span class="lb-of">· ' + s.total + ' ' + esc(t('hospitalsLbl')) + '</span></div>' +
+      '<div class="lb-month"><span class="lb-mlabel">' + esc(monthTitle) + '</span>' + monthTxt +
+        (state.monthEstimated ? ' <em class="lb-est">' + esc(t('estTag')) + '</em>' : '') + '</div>' +
+      '<div class="lb-total"><span class="lb-mlabel">' + esc(t('totalLbl')) + '</span>' + totalTxt + '</div>' +
       detail +
     '</div>';
-  }).join('') + '<p class="lb-hint">' +
+  }).join('');
+
+  el.innerHTML = monthRow + cards + '<p class="lb-hint">' +
     (state.monthEstimated ? esc(t('estNote')) + '<br>' : '') + esc(t('badgeHint')) + '</p>';
+
+  $$('.mchip', el).forEach(function (b) {
+    if (b.disabled) return;
+    b.addEventListener('click', function () {
+      var key = b.dataset.month;
+      state.selectedMonth = key;
+      state.badgeDetail = null;
+      if (!state.historyByMonth[key]) {
+        renderLeaderboard();                       // paints the loading state
+        loadHistory(key).then(function () { renderLeaderboard(); });
+      } else {
+        renderLeaderboard();
+      }
+    });
+  });
 
   $$('.badge', el).forEach(function (b) {
     b.addEventListener('click', function () {
