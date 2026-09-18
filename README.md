@@ -162,11 +162,21 @@ The hospital panel opens with a collapsible **Contacts** section: the CSSD
 manager from the hospital row first, then everyone on the sheet's
 **Contacts** tab (`Hospital Name, Cluster, City, Role, Name, Phone, Notes`),
 read straight from the published CSV — the script has no `?action=contacts`.
-**+ Add contact** posts
-`{hospital_name, add_contact: true, contact_role, contact_name, contact_phone}`.
+Opening a hospital refreshes its contacts from
+`?action=contacts&hospital=…` once per session — the CSV keeps the panel
+instant, the endpoint keeps it correct — and again right after any change.
 
-Phone numbers are normalised for display and for `tel:` links: a bare
-9-digit number gets its leading zero back (`fmtPhone` in `js/app.js`).
+* **+ Add contact** → `{hospital_name, add_contact: true, contact_role,
+  contact_name, contact_phone, contact_notes}`
+* **✕ on a contact** → a confirm step, then
+  `{hospital_name, delete_contact: true, contact_role, contact_name}`
+
+Only contacts from the Contacts tab can be deleted; the CSSD manager comes
+from the hospital row and is marked as such.
+
+Phone numbers are formatted server-side; `fmtPhone` in `js/app.js` still
+restores a dropped leading zero for anything read from the CSV or typed
+into a form.
 
 ### Leaderboard and badges
 

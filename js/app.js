@@ -112,7 +112,7 @@ var state = window.TM = {
   stageFilter: null, clusterFilter: null, classFilter: null, agentFilter: null, preview: false,
   markers: {}, map: null, fog: null, regionLayer: null, selected: null,
   products: [], warehouses: [], supplyLayers: [], showSupply: true,
-  preset: null, spread: {}, contacts: {}, contactsOpen: false,
+  preset: null, spread: {}, contacts: {}, contactsFresh: {}, contactDelete: null, contactsOpen: false,
   leaderboardOpen: false, badgeDetail: null, labelLayer: null
 };
 
@@ -1054,15 +1054,27 @@ function row(label, value, cls) {
 }
 
 function contactsHtml(m) {
-  var list = contactsFor(m), open = state.contactsOpen;
+  var list = contactsFor(m), open = state.contactsOpen, del = state.contactDelete;
   var rows = list.length
-    ? list.map(function (c) {
-        return '<div class="ct' + (c.primary ? ' ct-primary' : '') + '">' +
-          '<span class="ct-role">' + esc(c.role || t('contact')) + '</span>' +
+    ? list.map(function (c, i) {
+        var arming = del && del.hospital === m.name && del.index === i;
+        return '<div class="ct' + (c.primary ? ' ct-primary' : '') + (arming ? ' ct-arming' : '') + '">' +
+          '<span class="ct-role">' + esc(c.role || t('contact')) +
+            (c.primary ? ' <em>' + esc(t('fromSheetRow')) + '</em>' : '') + '</span>' +
           '<span class="ct-name" dir="auto">' + esc(c.name || t('none')) + '</span>' +
           (c.phone
             ? '<a class="ct-tel" href="' + esc(telHref(c.phone)) + '">' + esc(fmtPhone(c.phone)) + '</a>'
             : '<span class="ct-tel ct-muted">' + esc(t('none')) + '</span>') +
+          (c.notes ? '<span class="ct-notes" dir="auto">' + esc(c.notes) + '</span>' : '') +
+          (!c.primary && editEnabled()
+            ? (arming
+                ? '<span class="ct-confirm">' + esc(t('confirmDelete')) +
+                    '<button type="button" class="ct-no" data-i="' + i + '">' + esc(t('cancel')) + '</button>' +
+                    '<button type="button" class="ct-yes" data-i="' + i + '">' + esc(t('deleteLbl')) + '</button>' +
+                  '</span>'
+                : '<button type="button" class="ct-del" data-i="' + i + '" aria-label="' +
+                  esc(t('deleteLbl')) + '">✕</button>')
+            : '') +
         '</div>';
       }).join('')
     : '<p class="ct-empty">' + esc(t('noContacts')) + '</p>';
@@ -1077,6 +1089,32 @@ function contactsHtml(m) {
     '</div></div>';
 }
 
+function deleteContact(m, contact) {
+  state.contactDelete = null;
+  toast(t('saving'));
+  postUpdate({
+    hospital_name: m.name, delete_contact: true,
+    contact_role: contact.role, contact_name: contact.name
+  }).then(function (res) {
+    if (!res || res.success !== true) {
+      throw new Error((res && res.error) || 'the script rejected the delete');
+    }
+    return fetchContacts(m.name).catch(function () {
+      /* fall back to removing it locally if the re-read fails */
+      state.contacts[m.name] = (state.contacts[m.name] || []).filter(function (c) {
+        return !(c.name === contact.name && c.role === contact.role);
+      });
+    });
+  }).then(function () {
+    toast('✓ ' + t('contactDeleted'));
+    selectMission(m);
+  }).catch(function (e) {
+    toast(t('saveFailed') + ' — ' + e.message);
+    console.error('[TM] delete contact failed', e);
+    selectMission(m);
+  });
+}
+
 function openContactForm(m) {
   if (!editEnabled()) { toast(t('editOff')); return; }
   var roles = (CFG.CONTACT_ROLES || ['Other']).map(function (r) {
@@ -1088,10 +1126,12 @@ function openContactForm(m) {
         '<p dir="auto">' + esc(m.name) + '</p></div>' +
       '<div class="fld"><label class="fld-k" for="ct-role">' + esc(t('role')) + '</label>' +
         '<select class="in" id="ct-role" data-name="role">' + roles + '</select></div>' +
-      '<div class="fld"><label class="fld-k" for="ct-name">' + esc(t('fManager')) + '</label>' +
+      '<div class="fld"><label class="fld-k" for="ct-name">' + esc(t('nameLbl')) + '</label>' +
         '<input class="in" id="ct-name" data-name="name" type="text" dir="auto"></div>' +
       '<div class="fld"><label class="fld-k" for="ct-phone">' + esc(t('phone')) + '</label>' +
         '<input class="in" id="ct-phone" data-name="phone" type="tel" inputmode="tel"></div>' +
+      '<div class="fld"><label class="fld-k" for="ct-notes">' + esc(t('notesLbl')) + '</label>' +
+        '<input class="in" id="ct-notes" data-name="notes" type="text" dir="auto"></div>' +
       '<p class="edit-err" id="ct-err" hidden role="alert"></p>' +
       '<div class="edit-actions">' +
         '<button type="button" class="act" id="ct-cancel">' + esc(t('cancel')) + '</button>' +
@@ -1107,7 +1147,7 @@ function openContactForm(m) {
 
 function saveContact(m, form) {
   var role = $('#ct-role').value, name = String($('#ct-name').value).trim(),
-      phone = String($('#ct-phone').value).trim();
+      phone = String($('#ct-phone').value).trim(), notes = String($('#ct-notes').value).trim();
   var err = $('#ct-err'), btn = $('#ct-save');
   if (!name && !phone) {
     err.textContent = t('noteRequired');
@@ -1121,12 +1161,18 @@ function saveContact(m, form) {
 
   postUpdate({
     hospital_name: m.name, add_contact: true,
-    contact_role: role, contact_name: name, contact_phone: fmtPhone(phone)
+    contact_role: role, contact_name: name, contact_phone: fmtPhone(phone),
+    contact_notes: notes
   }).then(function (res) {
     if (!res || res.success !== true) {
       throw new Error((res && res.error) || 'the script rejected the contact');
     }
-    (state.contacts[m.name] = state.contacts[m.name] || []).push({ role: role, name: name, phone: fmtPhone(phone) });
+    return fetchContacts(m.name).catch(function () {
+      (state.contacts[m.name] = state.contacts[m.name] || []).push({
+        role: role, name: name, phone: fmtPhone(phone), notes: notes
+      });
+    });
+  }).then(function () {
     form.classList.remove('is-saving');
     state.contactsOpen = true;
     toast('✓ ' + t('contactSaved'));
@@ -1206,6 +1252,22 @@ function selectMission(m) {
   });
   var cadd = $('#contact-add');
   if (cadd) cadd.addEventListener('click', function () { openContactForm(m); });
+
+  var clist = contactsFor(m);
+  $$('.ct-del').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.contactDelete = { hospital: m.name, index: +b.dataset.i };
+      selectMission(m);
+    });
+  });
+  $$('.ct-no').forEach(function (b) {
+    b.addEventListener('click', function () { state.contactDelete = null; selectMission(m); });
+  });
+  $$('.ct-yes').forEach(function (b) {
+    b.addEventListener('click', function () { deleteContact(m, clist[+b.dataset.i]); });
+  });
+
+  refreshContacts(m);
 
   var upd = $('#btn-update');
   if (upd) upd.addEventListener('click', function () { openEditForm(m); });
@@ -1542,6 +1604,39 @@ function loadContacts() {
       state.contacts = {};
       return {};
     });
+}
+
+/* The Contacts tab CSV gives every hospital at once, which is what makes
+   the panel open instantly. ?action=contacts&hospital= is authoritative,
+   so each hospital is refreshed from it once per session — and again right
+   after an add or a delete. */
+function fetchContacts(name) {
+  var url = (CFG.APPS_SCRIPT_URL || '').trim();
+  if (!url) return Promise.reject(new Error('no endpoint'));
+  return fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') +
+                          'action=contacts&hospital=' + encodeURIComponent(name),
+                          CFG.CSV_TIMEOUT_MS || 8000)
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (j) {
+      if (!j || j.success !== true) throw new Error((j && j.error) || 'contacts lookup failed');
+      state.contacts[name] = (j.contacts || []).map(function (c) {
+        return {
+          role: String(c.role || '').trim(), name: String(c.name || '').trim(),
+          phone: String(c.phone || '').trim(), notes: String(c.notes || '').trim()
+        };
+      });
+      state.contactsFresh[name] = true;
+      return state.contacts[name];
+    });
+}
+
+function refreshContacts(m, force) {
+  if (!force && state.contactsFresh[m.name]) return;
+  fetchContacts(m.name).then(function () {
+    if (state.selected === m.id) selectMission(m);
+  }).catch(function (e) {
+    console.warn('[TM] contacts lookup failed, using the sheet copy:', e.message);
+  });
 }
 
 /* The CSSD manager lives on the hospital row; everyone else on the
