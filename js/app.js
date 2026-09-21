@@ -954,9 +954,12 @@ function renderHUD(st) {
   var src = $('#src-chip');
   if (src) {
     src.className = 'src src-' + state.source;
-    /* the chip labels the completion bar; it still flags an offline map */
-    src.textContent = t('completed') + (state.source === 'live' ? '' : ' · ' + t('offline'));
-    src.title = state.source === 'live' ? 'Live Google Sheet feed' : 'Bundled snapshot — live feed unavailable';
+    /* the chip labels the completion bar; the dot says whether it is live —
+       green while the sheet answers, dark when the map fell back offline */
+    var lbl = $('#src-label');
+    if (lbl) lbl.textContent = t('completed');
+    src.setAttribute('aria-label', t('completed') + ' — ' + (state.source === 'live' ? t('live') : t('offline')));
+    src.title = state.source === 'live' ? 'Online — live Google Sheet feed' : 'Offline — showing the saved copy';
   }
 }
 
