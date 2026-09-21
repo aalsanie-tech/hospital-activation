@@ -954,7 +954,8 @@ function renderHUD(st) {
   var src = $('#src-chip');
   if (src) {
     src.className = 'src src-' + state.source;
-    src.textContent = state.source === 'live' ? t('live') : t('snapshot');
+    /* the chip labels the completion bar; it still flags an offline map */
+    src.textContent = t('completed') + (state.source === 'live' ? '' : ' · ' + t('offline'));
     src.title = state.source === 'live' ? 'Live Google Sheet feed' : 'Bundled snapshot — live feed unavailable';
   }
 }
