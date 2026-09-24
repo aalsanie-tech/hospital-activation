@@ -479,12 +479,56 @@ function stats(list) {
   return s;
 }
 
+/* Four tiers, one per stage. An agent earns one per cluster once every
+   hospital of theirs in that cluster has reached the tier's stage.
+   Drawn as SVG rather than emoji so the tiers read as a progression —
+   and so an iPhone and an Android show the same picture. */
 var BADGE_TIERS = [
-  { key: 'blue',   icon: '🔵', minStage: 1 },
-  { key: 'orange', icon: '🟠', minStage: 2 },
-  { key: 'green',  icon: '🟢', minStage: 3 },
-  { key: 'gold',   icon: '⭐', minStage: 4 }
+  { key: 'bronze',  minStage: 1, name: 'bBronze',  metal: ['#ffd7ae', '#cd7f32', '#6d3a11'], rim: '#ffd9b5', glyph: 'phone' },
+  { key: 'silver',  minStage: 2, name: 'bSilver',  metal: ['#ffffff', '#b9c7d6', '#5c6c80'], rim: '#eaf2ff', glyph: 'flag'  },
+  { key: 'gold',    minStage: 3, name: 'bGold',    metal: ['#fff5c9', '#f5c542', '#8d5f0c'], rim: '#fff6cc', glyph: 'half'  },
+  { key: 'diamond', minStage: 4, name: 'bDiamond', metal: ['#f2fffb', '#7ef0d6', '#0e8a8a'], rim: '#d8fff5', glyph: 'crown' }
 ];
+
+var BADGE_GLYPHS = {
+  phone: '<path d="M8.6 6.3c.5-.5 1.4-.4 1.8.3l.9 1.5c.3.5.2 1.1-.2 1.4l-.8.7c.6 1.3 1.6 2.3 2.9 2.9l.7-.8c.4-.4 1-.5 1.5-.2l1.5.9c.7.4.8 1.3.3 1.8l-.9.9c-.5.5-1.2.6-1.9.5-3.7-1-6.6-4-7.5-7.6-.2-.7 0-1.4.5-1.9z"/>',
+  flag:  '<path d="M7.5 4.4h1.6v15.2H7.5z"/><path d="M10 5.3h7.4l-1.8 3 1.8 3H10z"/>',
+  half:  '<path d="M12 4.8a7.2 7.2 0 1 0 0 14.4 7.2 7.2 0 0 0 0-14.4zm0 1.8a5.4 5.4 0 1 1 0 10.8 5.4 5.4 0 0 1 0-10.8z"/>' +
+         '<path d="M12 7.2a4.8 4.8 0 0 1 0 9.6z"/>',
+  crown: '<path d="M4.6 16.2 3.1 7.3l4.7 3.2L12 4.9l4.2 5.6 4.7-3.2-1.5 8.9zM5.2 17.7h13.6v1.9H5.2z"/>'
+};
+
+var BADGE_UID = 0;
+
+/* A hexagon medallion: metal gradient for the rank, a glyph for what the
+   agent actually did. Gradient ids are made unique because the same badge
+   is drawn many times on one screen. */
+function badgeSvg(tier, size) {
+  var id = 'bgr' + (++BADGE_UID);
+  return '<svg class="bsvg bsvg-' + tier.key + '" viewBox="0 0 48 48" width="' + size +
+    '" height="' + size + '" aria-hidden="true" focusable="false">' +
+    '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2=".35" y2="1">' +
+      '<stop offset="0" stop-color="' + tier.metal[0] + '"/>' +
+      '<stop offset=".48" stop-color="' + tier.metal[1] + '"/>' +
+      '<stop offset="1" stop-color="' + tier.metal[2] + '"/>' +
+    '</linearGradient></defs>' +
+    '<path d="M24 2.6 42.5 13.3v21.4L24 45.4 5.5 34.7V13.3z" fill="url(#' + id + ')" ' +
+      'stroke="' + tier.rim + '" stroke-width="1.7" stroke-linejoin="round"/>' +
+    '<path d="M24 7.4 38.4 15.7v16.6L24 40.6 9.6 32.3V15.7z" fill="none" ' +
+      'stroke="rgba(0,0,0,.25)" stroke-width="1.2"/>' +
+    '<g transform="translate(12 12)" fill="rgba(26,16,4,.8)">' +
+      (BADGE_GLYPHS[tier.glyph] || '') + '</g></svg>';
+}
+
+function badgeTier(key) {
+  return BADGE_TIERS.filter(function (x) { return x.key === key; })[0] || null;
+}
+
+function badgeName(tier) { return tier ? t(tier.name) : ''; }
+
+function badgeHow(tier) {
+  return t('bHow').replace('{s}', stageName(tier.minStage));
+}
 
 /* The script logs every stage change to a Stage History tab. Counting real
    transitions is the only way "+1 contacted AND +1 visited" can be right
@@ -638,15 +682,15 @@ function checkNewBadges(stats) {
   var fresh = now.filter(function (k) { return prev.indexOf(k) === -1; });
   if (!fresh.length) return;
   var parts = fresh[0].split('|');
-  var tier = BADGE_TIERS.filter(function (x) { return x.key === parts[1]; })[0];
-  celebrate((tier ? tier.icon + ' ' : '') + parts[2] + ' · ' + shortAgent(parts[0]) +
-            (fresh.length > 1 ? ' +' + (fresh.length - 1) : ''));
+  var tier = badgeTier(parts[1]);
+  celebrate(badgeName(tier) + ' · ' + parts[2] + ' · ' + shortAgent(parts[0]) +
+            (fresh.length > 1 ? ' +' + (fresh.length - 1) : ''), tier);
 }
 
-function celebrate(text) {
+function celebrate(text, tier) {
   var el = document.createElement('div');
   el.className = 'celebrate';
-  el.innerHTML = '<span>' + esc(text) + '</span>';
+  el.innerHTML = '<span>' + (tier ? badgeSvg(tier, 30) : '') + esc(text) + '</span>';
   document.body.appendChild(el);
   setTimeout(function () { el.classList.add('go'); }, 20);
   setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 3400);
@@ -1022,9 +1066,9 @@ function renderLeaderboard() {
   var cards = stats.map(function (s, i) {
     var badges = BADGE_TIERS.map(function (tier) {
       var n = s.badges[tier.key].length;
-      return n ? '<button type="button" class="badge" data-agent="' + esc(s.agent) +
-        '" data-tier="' + tier.key + '" title="' + esc(tier.key) + '">' +
-        '<span class="badge-icon">' + tier.icon + '</span><b>×' + n + '</b></button>' : '';
+      return n ? '<button type="button" class="badge b-' + tier.key + '" data-agent="' + esc(s.agent) +
+        '" data-tier="' + tier.key + '" title="' + esc(badgeName(tier)) + '">' +
+        '<span class="badge-icon">' + badgeSvg(tier, 20) + '</span><b>×' + n + '</b></button>' : '';
     }).join('');
 
     var segs = [1, 2, 3, 4].map(function (st) {
@@ -1047,8 +1091,9 @@ function renderLeaderboard() {
 
     var detail = '';
     if (state.badgeDetail && state.badgeDetail.agent === s.agent) {
-      var tier = BADGE_TIERS.filter(function (x) { return x.key === state.badgeDetail.tier; })[0];
-      detail = '<div class="badge-detail">' + (tier ? tier.icon + ' ' : '') +
+      var tier = badgeTier(state.badgeDetail.tier);
+      detail = '<div class="badge-detail">' + (tier ? badgeSvg(tier, 15) : '') +
+        '<b>' + esc(badgeName(tier)) + '</b> ' +
         esc(s.badges[state.badgeDetail.tier].join(' · ')) + '</div>';
     }
 
@@ -1135,22 +1180,26 @@ function renderFilters() {
       esc(label) + '<b>' + n + '</b></button>';
   };
 
-  var html = '<span class="fgroup-k">' + esc(t('klass')) + '</span>' +
+  /* agent first, then class, each on its own line — the two rows used to
+     share one strip and the class chips fell off the end of a phone */
+  var agentRow = '<span class="fgroup-k">' + esc(t('agentF')) + '</span>' +
+    chip('agent', '', t('all'), byAgent.length, !state.agentFilter);
+  agentList().forEach(function (a) {
+    agentRow += chip('agent', a, shortAgent(a),
+      count(byAgent, function (m) { return m.agent === a; }),
+      state.agentFilter === a);
+  });
+
+  var classRow = '<span class="fgroup-k">' + esc(t('klass')) + '</span>' +
     chip('class', '', t('all'), byClass.length, !state.classFilter);
   ['A', 'B', 'C'].forEach(function (c) {
-    html += chip('class', c, c,
+    classRow += chip('class', c, c,
       count(byClass, function (m) { return String(m.cls || '').toUpperCase() === c; }),
       state.classFilter === c);
   });
 
-  html += '<span class="fsep"></span><span class="fgroup-k">' + esc(t('agentF')) + '</span>' +
-    chip('agent', '', t('all'), byAgent.length, !state.agentFilter);
-  agentList().forEach(function (a) {
-    html += chip('agent', a, shortAgent(a),
-      count(byAgent, function (m) { return m.agent === a; }),
-      state.agentFilter === a);
-  });
-  el.innerHTML = html;
+  el.innerHTML = '<div class="frow">' + agentRow + '</div>' +
+                 '<div class="frow">' + classRow + '</div>';
 
   $$('.fchip', el).forEach(function (b) {
     b.addEventListener('click', function () {
@@ -1582,6 +1631,9 @@ function boot() {
       if (!applyDeepLink()) frameTerritory();
       spreadPins();
       renderPins();
+      installBadgeGuide();
+      /* ?badges=1 — a link a manager can send that opens the badge list */
+      if (new URLSearchParams(location.search).get('badges') === '1') openBadgeGuide();
       installPreviewToggle();
       installThemeSwitch();
       whReady.then(function () {
@@ -1650,6 +1702,57 @@ function frameTerritory(tries) {
   map.fitBounds(b, { animate: false, paddingTopLeft: [18, 96], paddingBottomRight: [18, 80] });
   var z = map.getZoom();
   if (z >= CFG.MIN_ZOOM && z <= CFG.MAX_ZOOM) map.setMinZoom(Math.max(3, z - 2));
+}
+
+/* The four badges laid out before anyone has earned them — half the pull
+   of a badge is seeing the one you have not got yet. Sits above Preview. */
+function installBadgeGuide() {
+  var btn = document.createElement('button');
+  btn.className = 'preview-toggle badge-toggle';
+  btn.innerHTML = '<span class="bt-ic">' + badgeSvg(BADGE_TIERS[3], 17) + '</span>' +
+                  esc(t('badgesBtn'));
+  btn.addEventListener('click', openBadgeGuide);
+  $('#drawer').appendChild(btn);
+  state.badgeBtn = btn;
+}
+
+function openBadgeGuide() {
+  var st = agentStats(state.missions, state.selectedMonth || currentMonthKey());
+  var held = {};
+  BADGE_TIERS.forEach(function (tr) { held[tr.key] = 0; });
+  st.forEach(function (s) {
+    BADGE_TIERS.forEach(function (tr) { held[tr.key] += (s.badges[tr.key] || []).length; });
+  });
+
+  var el = document.createElement('div');
+  el.className = 'bguide';
+  el.innerHTML =
+    '<div class="bguide-box" role="dialog" aria-modal="true" aria-label="' + esc(t('badgesBtn')) + '">' +
+      '<button class="bguide-x" aria-label="' + esc(t('cancel')) + '">\u2715</button>' +
+      '<h2>' + esc(t('badgesBtn')) + '</h2>' +
+      '<p class="bguide-sub">' + esc(t('badgesSub')) + '</p>' +
+      '<ul class="bguide-list">' + BADGE_TIERS.map(function (tr) {
+        return '<li class="bg-row b-' + tr.key + '">' +
+          '<span class="bg-ic">' + badgeSvg(tr, 52) + '</span>' +
+          '<span class="bg-txt"><b>' + esc(badgeName(tr)) + '</b>' +
+            '<i>' + esc(badgeHow(tr)) + '</i></span>' +
+          '<em class="bg-n' + (held[tr.key] ? ' has' : '') + '">' +
+            (held[tr.key] ? '\u00d7' + held[tr.key] : '\u2014') + '</em></li>';
+      }).join('') + '</ul>' +
+      '<p class="bguide-foot">' + esc(t('badgesFoot')) + '</p>' +
+    '</div>';
+
+  function close() {
+    document.removeEventListener('keydown', onKey);
+    if (el.parentNode) el.parentNode.removeChild(el);
+  }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  el.addEventListener('click', function (e) {
+    if (e.target === el || e.target.className === 'bguide-x') close();
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(el);
+  requestAnimationFrame(function () { el.classList.add('go'); });
 }
 
 /* Lets you show stakeholders what 100% conquest looks like without

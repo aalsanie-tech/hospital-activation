@@ -218,13 +218,15 @@ body.full-conquest .leaflet-pane path.region-conquered{stroke-width:3}
   display:flex; gap:6px; overflow-x:auto; scrollbar-width:none;
   padding:4px 10px 8px;
 }
-.filters{
+.filters{display:block;padding:8px 0 0}
+.frow{
   display:flex; align-items:center; gap:5px; overflow-x:auto; scrollbar-width:none;
-  padding:8px 10px 0;
+  padding:0 10px;
 }
-.filters::-webkit-scrollbar{display:none}
+.frow + .frow{margin-top:5px}
+.frow::-webkit-scrollbar{display:none}
 .fgroup-k{
-  flex:none; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
+  flex:none; min-width:36px; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase;
   color:var(--ink-mute); font-family:var(--font-hud); margin-inline-end:2px;
 }
 .fsep{flex:none;width:1px;height:18px;background:var(--line);margin:0 5px}
@@ -778,8 +780,10 @@ body.low-power .urg-expired .pin-ring{animation:none}
 }
 .badge-detail{
   margin-top:6px; padding:6px 9px; border-radius:9px; font-size:11.5px;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
   background:#0d1c2b; color:var(--ink-dim); border:1px solid var(--line);
 }
+.badge-detail b{color:var(--ink);font-weight:800}
 .lb-hint{margin:8px 0 0;font-size:10.5px;color:var(--ink-mute);text-align:center}
 
 /* badge earned — a brief flash over the map */
@@ -1059,7 +1063,8 @@ body.low-power .urg-expired .pin-ring{animation:none}
   display:inline-flex; align-items:center; gap:3px; cursor:pointer; padding:3px 8px;
   border-radius:20px; border:1px solid var(--line); background:#0f1d2c;
 }
-.badge-icon{font-size:15px;line-height:1}
+.badge-icon{display:inline-flex;line-height:0}
+.bsvg{display:block}
 .badge b{font-size:11px;color:var(--ink-dim);font-weight:800}
 .badge:hover{border-color:var(--ink-mute)}
 
@@ -1116,3 +1121,57 @@ body.low-power .urg-expired .pin-ring{animation:none}
 @keyframes liveBlink{0%,100%{opacity:1}50%{opacity:.45}}
 .src-snapshot{background:#1a2230;color:var(--ink-mute);border:1px solid #2a3442}
 @media (prefers-reduced-motion:reduce){.src-live .live-dot{animation:none}}
+
+
+/* ═══ BADGES ═════════════════════════════════════════════════════ */
+.b-gold .bsvg{filter:drop-shadow(0 0 4px #f5c54266)}
+.b-diamond .bsvg{filter:drop-shadow(0 0 5px #7ef0d6aa)}
+.badge-toggle .bt-ic{display:inline-flex;vertical-align:-4px;margin-inline-end:6px}
+.celebrate span{display:inline-flex;align-items:center;gap:10px}
+
+/* the four tiers, shown before they are earned */
+.bguide{
+  position:fixed; inset:0; z-index:4000; display:grid; place-items:center;
+  padding:18px; background:#02050ad1; backdrop-filter:blur(3px);
+  opacity:0; transition:opacity .18s;
+}
+.bguide.go{opacity:1}
+.bguide-box{
+  position:relative; width:min(380px,100%); max-height:86vh; overflow-y:auto;
+  padding:18px 16px 14px; border-radius:18px;
+  border:1px solid var(--line); background:#08111ff7;
+  box-shadow:0 30px 70px #000b; backdrop-filter:blur(12px);
+}
+.bguide-x{
+  position:absolute; top:10px; inset-inline-end:10px; cursor:pointer;
+  width:30px; height:30px; border-radius:50%; font-size:13px;
+  border:1px solid var(--line); background:#0f1d2c; color:var(--ink-dim);
+}
+.bguide-box h2{margin:0;font-family:var(--font-hud);font-size:17px;color:var(--ink)}
+.bguide-sub{margin:4px 0 12px;font-size:11.5px;color:var(--ink-mute)}
+.bguide-list{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.bg-row{
+  display:flex; align-items:center; gap:12px; padding:10px 12px;
+  border-radius:14px; border:1px solid var(--line); background:#0d1a28;
+}
+.bg-ic{flex:none;display:grid;place-items:center;width:52px;height:52px}
+.bg-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.bg-txt b{font-size:13.5px;font-weight:800;color:var(--ink)}
+.bg-txt i{font-style:normal;font-size:11px;line-height:1.45;color:var(--ink-mute)}
+.bg-n{
+  flex:none; font-style:normal; font-family:var(--font-hud);
+  font-size:13px; font-weight:800; color:#2f4459;
+}
+.bg-n.has{color:var(--gold)}
+.bguide-foot{
+  margin:11px 2px 0; font-size:10.5px; line-height:1.5;
+  color:var(--ink-mute); text-align:center;
+}
+:root[data-preset="desert"] .bguide-box{background:#241d12f7;border-color:#4a3c26}
+:root[data-preset="desert"] .bg-row,
+:root[data-preset="desert"] .bguide-x{background:#2a2114;border-color:#4a3c26}
+:root[data-preset="saudi"] .bguide{background:#0c1a12b8}
+:root[data-preset="saudi"] .bguide-box{background:#fffffff7;border-color:#cdd8e6}
+:root[data-preset="saudi"] .bg-row,
+:root[data-preset="saudi"] .bguide-x{background:#f4f7fb;border-color:#cdd8e6}
+:root[data-preset="saudi"] .bg-n{color:#9fb0c4}
