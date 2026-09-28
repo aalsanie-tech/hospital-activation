@@ -720,6 +720,7 @@ function initMap() {
   map.getPane('fogPane').style.pointerEvents = 'none';
   map.getPane('regions').style.pointerEvents = 'auto';
   L.control.zoom({ position: 'bottomright' }).addTo(map);
+  installLocate(map);   /* added after zoom so it sits above the +/- pair */
   map.on('zoomend', function () {
     applyZoomScale();
     if (spreadPins()) {
@@ -2362,6 +2363,78 @@ function toast(msg) {
   el._t = setTimeout(function () { el.hidden = true; }, 3200);
 }
 
+
+/* ═════════════════════════════════════════ my location ═══ */
+/* Same permission flow as the update form: one high-accuracy fix, no
+   watch running in the background eating battery. The dot is a marker,
+   so panning and zooming carry it along on their own. */
+var LOCATE_ZOOM = 12;
+
+function installLocate(map) {
+  var Locate = L.Control.extend({
+    options: { position: 'bottomright' },
+    onAdd: function () {
+      var wrap = L.DomUtil.create('div', 'leaflet-bar tm-locate');
+      var a = L.DomUtil.create('a', '', wrap);
+      a.href = '#';
+      a.innerHTML = '\ud83d\udccd';
+      a.title = t('myLocation');
+      a.setAttribute('aria-label', t('myLocation'));
+      L.DomEvent.on(a, 'click', L.DomEvent.stop);
+      L.DomEvent.on(a, 'click', function () { locateMe(); });
+      state.locateBtn = wrap;
+      return wrap;
+    }
+  });
+  map.addControl(new Locate());
+}
+
+function locateMe() {
+  var btn = state.locateBtn;
+  if (!navigator.geolocation) { toast(t('gpsUnsupported')); return; }
+
+  /* a second tap re-centres on the fix we already hold, immediately, and
+     then quietly refreshes it — waiting on the GPS first would feel dead */
+  if (state.myLoc) centreOnMe();
+  else if (btn) btn.classList.add('busy');
+
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    var first = !state.myLoc;
+    state.myLoc = {
+      lat: pos.coords.latitude, lng: pos.coords.longitude,
+      acc: Math.round(pos.coords.accuracy || 0)
+    };
+    if (btn) { btn.classList.remove('busy'); btn.classList.add('on'); }
+    showMyLoc();
+    if (first) centreOnMe();
+  }, function (err) {
+    if (btn) btn.classList.remove('busy');
+    if (!state.myLoc) toast(err && err.code === 1 ? t('locDenied') : t('gpsFailed'));
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+}
+
+function showMyLoc() {
+  var map = state.map, me = state.myLoc;
+  if (!map || !me) return;
+  if (state.myMarker) { state.myMarker.setLatLng([me.lat, me.lng]); return; }
+  state.myMarker = L.marker([me.lat, me.lng], {
+    icon: L.divIcon({
+      className: 'me-wrap', iconSize: [16, 16], iconAnchor: [8, 8],
+      html: '<i class="me-pulse"></i><i class="me-dot"></i>'
+    }),
+    keyboard: false, zIndexOffset: 1200, title: t('myLocation')
+  }).addTo(map);
+  state.myMarker.on('click', centreOnMe);
+}
+
+function centreOnMe() {
+  var map = state.map, me = state.myLoc;
+  if (!map || !me) return;
+  /* a flick leaves inertia running, and an animated re-centre loses to it —
+     stop the map and jump, so the button always lands where it says */
+  map.stop();
+  map.setView([me.lat, me.lng], Math.max(map.getZoom(), LOCATE_ZOOM), { animate: false });
+}
 
 /* ══════════════════════════════════ Nupco warehouses ═══ */
 /* Depots sit above the fog — logistics you already know about. The web app

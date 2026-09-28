@@ -69,7 +69,9 @@ window.TM_I18N = {
     gpsFar: "You're {km} km from this hospital's listed location. Tap again only if you are at the hospital.",
     gpsDenied: 'Location permission is off — allow it for this site in your phone settings',
     gpsFailed: 'Could not get a location — try again',
-    gpsUnsupported: "This browser can't share your location"
+    gpsUnsupported: "This browser can't share your location",
+    myLocation: 'My location',
+    locDenied: 'Location is off — allow it so the map can show where you are',
   },
   ar: {
     dir: 'rtl', lang: 'ar',
@@ -132,6 +134,8 @@ window.TM_I18N = {
     gpsFar: 'أنت على بعد {km} كم من موقع المستشفى المسجل. اضغط مرة أخرى فقط إذا كنت في المستشفى.',
     gpsDenied: 'إذن الموقع مغلق — فعّله لهذا الموقع من إعدادات الجوال',
     gpsFailed: 'تعذّر تحديد الموقع — حاول مرة أخرى',
-    gpsUnsupported: 'هذا المتصفح لا يدعم مشاركة الموقع'
+    gpsUnsupported: 'هذا المتصفح لا يدعم مشاركة الموقع',
+    myLocation: 'موقعي',
+    locDenied: 'خدمة الموقع مغلقة — فعّلها ليظهر موقعك على الخريطة',
   }
 };

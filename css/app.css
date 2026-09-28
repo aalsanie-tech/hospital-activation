@@ -395,7 +395,8 @@ body.full-conquest .leaflet-pane path.region-conquered{stroke-width:3}
 .toast{
   position:absolute; z-index:1800; left:50%; transform:translateX(-50%);
   bottom:calc(var(--legend-h) + 18px + var(--sab));
-  padding:9px 15px; border-radius:22px; font-size:12.5px; white-space:nowrap;
+  max-width:min(320px,calc(100vw - 32px)); text-align:center; line-height:1.45;
+  padding:9px 15px; border-radius:22px; font-size:12.5px;
   background:#0c1a29f2; border:1px solid var(--line); box-shadow:0 10px 30px #000a;
 }
 .toast b{color:var(--active)}
@@ -1175,3 +1176,34 @@ body.low-power .urg-expired .pin-ring{animation:none}
 :root[data-preset="saudi"] .bg-row,
 :root[data-preset="saudi"] .bguide-x{background:#f4f7fb;border-color:#cdd8e6}
 :root[data-preset="saudi"] .bg-n{color:#9fb0c4}
+
+
+/* ═══ MY LOCATION ═══════════════════════════════════════ */
+.tm-locate{
+  margin-bottom:8px!important; border-radius:10px!important; overflow:hidden;
+  box-shadow:0 6px 20px #0009!important;
+}
+.tm-locate a{font-size:15px}
+.tm-locate.on a{background:#10263c!important;border-color:#2f6fa8!important}
+.tm-locate.busy a{animation:locateWait 1s ease-in-out infinite}
+@keyframes locateWait{0%,100%{opacity:1}50%{opacity:.4}}
+
+.me-wrap{background:none!important;border:0!important}
+.me-dot,.me-pulse{
+  position:absolute; left:50%; top:50%; width:14px; height:14px;
+  margin:-7px 0 0 -7px; border-radius:50%;
+}
+.me-dot{
+  background:#2f8bff; border:2.5px solid #fff;
+  box-shadow:0 0 0 1px #00000059,0 0 14px #2f8bffcc;
+}
+.me-pulse{background:#2f8bff59;animation:mePulse 2.1s ease-out infinite}
+@keyframes mePulse{
+  0%{transform:scale(1);opacity:.75}
+  70%{transform:scale(3.6);opacity:0}
+  100%{transform:scale(3.6);opacity:0}
+}
+@media (prefers-reduced-motion:reduce){
+  .me-pulse{animation:none;opacity:.3}
+  .tm-locate.busy a{animation:none;opacity:.5}
+}
