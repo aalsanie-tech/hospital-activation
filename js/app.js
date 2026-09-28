@@ -2503,11 +2503,36 @@ function validWarehouse(w) {
   return !!w.name && w.lat !== null && w.lng !== null && isFinite(w.lat) && isFinite(w.lng);
 }
 
+/* The Nupco mark itself: navy hexagon ring, the orange cell inside it and
+   the red node on its shoulder. Gradient ids are made unique — the depots
+   are torn down and rebuilt together, and a shared id would break on the
+   markers that outlive the one holding the <defs>. */
+var WH_UID = 0;
+
+function warehouseMark(size) {
+  var id = 'whg' + (++WH_UID);
+  return '<svg class="wh-mark" viewBox="0 0 34 34" width="' + size + '" height="' + size +
+    '" aria-hidden="true">' +
+      '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1">' +
+        '<stop offset="0" stop-color="#f4922f"/><stop offset="1" stop-color="#d4571a"/>' +
+      '</linearGradient></defs>' +
+      '<polygon points="18.00,4.80 30.30,11.90 30.30,26.10 18.00,33.20 5.70,26.10 5.70,11.90" ' +
+        'fill="#1b2350" stroke="#5f77b4" stroke-width="1"/>' +
+      '<polygon points="18.00,8.80 26.83,13.90 26.83,24.10 18.00,29.20 9.17,24.10 9.17,13.90" ' +
+        'fill="var(--wh-hole)"/>' +
+      '<line x1="8.4" y1="8.6" x2="18.5" y2="19.4" stroke="url(#' + id + ')" ' +
+        'stroke-width="3.6" stroke-linecap="round"/>' +
+      '<polygon points="18.50,12.20 24.91,15.90 24.91,23.30 18.50,27.00 12.09,23.30 12.09,15.90" ' +
+        'fill="url(#' + id + ')"/>' +
+      '<polygon points="8.40,3.60 12.73,6.10 12.73,11.10 8.40,13.60 4.07,11.10 4.07,6.10" ' +
+        'fill="#ec2f2a"/>' +
+    '</svg>';
+}
+
 function warehouseIcon() {
   return L.divIcon({
-    className: 'wh-wrap',
-    html: '<div class="wh"><span class="wh-glyph">▣</span></div>',
-    iconSize: [21, 21], iconAnchor: [10, 10]
+    className: 'wh-wrap', html: warehouseMark(24),
+    iconSize: [24, 24], iconAnchor: [12, 12]
   });
 }
 
@@ -2653,7 +2678,7 @@ function saveWarehouse(w, form) {
 function installWarehouseToggle() {
   var drawer = $('#drawer'), btn = document.createElement('button');
   btn.className = 'supply-toggle' + (state.showSupply ? ' on' : '');
-  btn.innerHTML = '<span>▣</span> <b></b>';
+  btn.innerHTML = '<span>' + warehouseMark(17) + '</span> <b></b>';
   var label = function () {
     btn.querySelector('b').textContent =
       t('warehouses') + ' · ' + (state.warehouses || []).length;

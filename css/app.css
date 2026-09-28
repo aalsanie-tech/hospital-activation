@@ -6,7 +6,7 @@
   --ink:#e8f2ff; --ink-dim:#8ba3bf; --ink-mute:#5b7492;
   --locked:#5b6b82; --contact:#38bdf8; --visited:#fbbf24;
   --partial:#86efac; --active:#22ff88; --gold:#ffd766;
-  --hud-h:76px; --legend-h:104px;
+  --hud-h:76px; --legend-h:104px; --wh-hole:#07101a;
   --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
   --font:'Tajawal',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   --font-hud:'Orbitron',var(--font);
@@ -551,17 +551,8 @@ select.in{
 
 /* ═══ SUPPLY NETWORK (Nupco depots) ══════════════════════════════ */
 .wh-wrap{background:none!important;border:0!important}
-.wh{
-  width:21px; height:21px; display:grid; place-items:center; border-radius:6px;
-  background:linear-gradient(160deg,#123048,#0a1a28);
-  border:1.5px solid #58a8e6; box-shadow:0 0 12px #58a8e666,0 2px 6px #0009;
-  transform:rotate(45deg);
-}
-.wh-glyph{
-  transform:rotate(-45deg); font-size:10px; line-height:1; color:#9ad4ff;
-  text-shadow:0 0 8px #58a8e6;
-}
-.wh-wrap:hover .wh{border-color:#9ad4ff;box-shadow:0 0 18px #58a8e6aa}
+.wh-mark{display:block;filter:drop-shadow(0 1px 4px #000a)}
+.wh-wrap:hover .wh-mark{filter:drop-shadow(0 0 7px #f4922faa) drop-shadow(0 1px 4px #000a)}
 
 
 .supply-toggle{
@@ -569,7 +560,7 @@ select.in{
   margin-bottom:12px; padding:10px 12px; border-radius:12px; text-align:start;
   border:1px solid var(--line); background:#0a1420; color:var(--ink-mute); font-size:12.5px;
 }
-.supply-toggle span{color:#58a8e6;font-size:13px}
+.supply-toggle span{display:inline-flex;line-height:0}
 .supply-toggle b{font-weight:600}
 .supply-toggle.on{border-color:#58a8e6;background:#0d1c2b;color:#cfe4ff}
 .rows-head{
@@ -876,6 +867,7 @@ body.low-power .urg-expired .pin-ring{animation:none}
 }
 :root[data-preset="saudi"] .toast{background:#ffffffF2;border-color:#cdd8e6;color:#16202c}
 :root[data-preset="saudi"] .cl-bar{background:#e3eaf3}
+:root[data-preset="saudi"]{--wh-hole:#eef3f9}
 :root[data-preset="saudi"] .ds b,
 :root[data-preset="saudi"] .cl-pct{color:#006C35}
 :root[data-preset="saudi"] .act-call{background:linear-gradient(135deg,#0f9b55,#006C35);color:#fff}
@@ -1013,7 +1005,7 @@ body.low-power .urg-expired .pin-ring{animation:none}
   background:linear-gradient(160deg,#4a3c26,#241c10);
   border-color:#e8d9b0; box-shadow:0 0 12px #e8d9b066,0 2px 6px #0009;
 }
-:root[data-preset="desert"] .wh-glyph{color:#f6e7c4;text-shadow:0 0 8px #e8d9b0}
+:root[data-preset="desert"]{--wh-hole:#241d12}
 :root[data-preset="desert"] .pin-star{color:#fff1b8;text-shadow:0 0 8px #ffd94a,0 0 16px #ffd94a88}
 /* the conquered-region pulse animates its own filter, so Desert needs its
    own keyframes or the green one wins */
