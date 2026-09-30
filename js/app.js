@@ -117,7 +117,10 @@ var state = window.TM = {
   preset: null, spread: {}, contacts: {}, contactsFresh: {}, contactDelete: null, contactsOpen: false,
   leaderboardOpen: false, badgeDetail: null, labelLayer: null,
   history: [], historyOk: false, monthEstimated: false,
-  historyByMonth: {}, selectedMonth: null, monthLoading: null
+  historyByMonth: {}, selectedMonth: null, monthLoading: null,
+  user: null, replaySince: null,
+  clusterSites: [], clusterLayers: [], showClusters: true,
+  siteContacts: {}, siteContactsOpen: false, selectedSite: null
 };
 
 /* ════════════════════════════════════════ CSV ═══ */
@@ -167,6 +170,7 @@ function normalizeRows(rows) {
     var meta = resolveCluster(cl) || { en: cl || 'Unassigned', short: cl || '—', region: null };
     out.push({
       id: 'h' + (i + 1),
+      hid: (r['Hospital ID'] || '').trim(),
       name: (r['Hospital Name'] || '').trim(),
       city: (r['City'] || '').trim(),
       cluster: cl, clusterEn: meta.en, clusterShort: meta.short, region: meta.region,
@@ -484,10 +488,10 @@ function stats(list) {
    Drawn as SVG rather than emoji so the tiers read as a progression —
    and so an iPhone and an Android show the same picture. */
 var BADGE_TIERS = [
-  { key: 'bronze',  minStage: 1, name: 'bBronze',  metal: ['#ffd7ae', '#cd7f32', '#6d3a11'], rim: '#ffd9b5', glyph: 'phone' },
-  { key: 'silver',  minStage: 2, name: 'bSilver',  metal: ['#ffffff', '#b9c7d6', '#5c6c80'], rim: '#eaf2ff', glyph: 'flag'  },
-  { key: 'gold',    minStage: 3, name: 'bGold',    metal: ['#fff5c9', '#f5c542', '#8d5f0c'], rim: '#fff6cc', glyph: 'half'  },
-  { key: 'diamond', minStage: 4, name: 'bDiamond', metal: ['#f2fffb', '#7ef0d6', '#0e8a8a'], rim: '#d8fff5', glyph: 'crown' }
+  { key: 'bronze',  code: 'blue',   minStage: 1, name: 'bBronze',  metal: ['#ffd7ae', '#cd7f32', '#6d3a11'], rim: '#ffd9b5', glyph: 'phone' },
+  { key: 'silver',  code: 'orange', minStage: 2, name: 'bSilver',  metal: ['#ffffff', '#b9c7d6', '#5c6c80'], rim: '#eaf2ff', glyph: 'flag'  },
+  { key: 'gold',    code: 'green',  minStage: 3, name: 'bGold',    metal: ['#fff5c9', '#f5c542', '#8d5f0c'], rim: '#fff6cc', glyph: 'half'  },
+  { key: 'diamond', code: 'gold',   minStage: 4, name: 'bDiamond', metal: ['#f2fffb', '#7ef0d6', '#0e8a8a'], rim: '#d8fff5', glyph: 'crown' }
 ];
 
 var BADGE_GLYPHS = {
@@ -551,6 +555,7 @@ function loadHistory(month) {
           date: String(h.date || h.Date || '').slice(0, 10),
           hospital: String(h.hospital || h.Hospital || '').trim(),
           agent: String(h.agent || h.Agent || '').trim(),
+          by: String(h.updated_by || h.updatedBy || '').trim(),
           from: parseStage(h.from != null ? h.from : h.from_stage),
           to: parseStage(h.to != null ? h.to : h.to_stage)
         };
@@ -632,10 +637,25 @@ function agentStats(list, month) {
     if (st < c.min) c.min = st;
   });
   if (useHistory) {
+    /* A move is credited to whoever made it. Territory — totals and badges —
+       stays with the owner, so someone who only ever works other people's
+       hospitals gets a card with this month's moves and nothing else. */
+    var cardFor = function (who) {
+      if (!who) return null;
+      if (byAgent[who]) return byAgent[who];
+      var want = shortAgent(who).toLowerCase(), hit = null;
+      Object.keys(byAgent).forEach(function (a) {
+        if (!hit && shortAgent(a).toLowerCase() === want) hit = byAgent[a];
+      });
+      return hit || (byAgent[who] = {
+        agent: who, total: 0, reached: [0, 0, 0, 0, 0], exact: [0, 0, 0, 0, 0],
+        month: [0, 0, 0, 0, 0], clusters: {}, score: 0, guest: true
+      });
+    };
     hist.forEach(function (h) {
-      var s = byAgent[h.agent];
-      if (!s || !h.to) return;
-      s.month[h.to]++;                       // one count per transition, not per hospital
+      if (!h.to) return;
+      var s = cardFor(h.by) || byAgent[h.agent];
+      if (s) s.month[h.to]++;                // one count per transition, not per hospital
     });
   }
 
@@ -672,28 +692,118 @@ function badgeKeys(stats) {
   return out;
 }
 
-/* A badge that was not there last time is worth a moment on the map. */
+/* A badge that was not there last time is worth a moment on the map — and
+   a line in the script's Achievements log, so the rest of the team hears
+   about it next time they open the app. The script ignores repeats, so
+   several phones noticing the same badge is harmless.
+
+   Only live data counts: a stale snapshot would "lose" badges and then
+   "earn" them again on the next good load. */
 function checkNewBadges(stats) {
-  if (state.preview || state.sim) return;
+  if (state.preview || state.sim || state.source !== 'live' || !state.missions.length) return;
   var now = badgeKeys(stats), prev = null;
-  try { prev = JSON.parse(localStorage.getItem('tm_badges') || 'null'); } catch (e) {}
-  try { localStorage.setItem('tm_badges', JSON.stringify(now)); } catch (e) {}
+  /* tm_badges2: a new key on purpose. Older builds kept this list under
+     other tier names, and only while the Progress board was open, so their
+     copy is stale — comparing against it would report weeks-old badges to
+     the script as earned today. A phone without the new key just takes a
+     silent baseline. */
+  try { prev = JSON.parse(localStorage.getItem('tm_badges2') || 'null'); } catch (e) {}
+  try { localStorage.setItem('tm_badges2', JSON.stringify(now)); localStorage.removeItem('tm_badges'); } catch (e) {}
+  var firstPass = !state.badgesChecked;
+  state.badgesChecked = true;
   if (!prev) return;
   var fresh = now.filter(function (k) { return prev.indexOf(k) === -1; });
   if (!fresh.length) return;
+  fresh.forEach(function (k) {
+    var p = k.split('|');
+    logAchievement(p[0], badgeTier(p[1]), p[2]);
+  });
+  /* Badges found on the way in were earned while this phone was closed;
+     the "while you were away" replay announces those, once. */
+  if (firstPass && state.replaySince) return;
   var parts = fresh[0].split('|');
   var tier = badgeTier(parts[1]);
   celebrate(badgeName(tier) + ' · ' + parts[2] + ' · ' + shortAgent(parts[0]) +
             (fresh.length > 1 ? ' +' + (fresh.length - 1) : ''), tier);
 }
 
-function celebrate(text, tier) {
+function logAchievement(agent, tier, cluster) {
+  if (!tier || !editEnabled()) return;
+  postUpdate({ log_achievement: true, agent: agent, badge: tier.code, cluster: cluster })
+    .then(function (res) {
+      if (res && res.success === false) console.warn('[TM] achievement not logged:', res.error);
+    })
+    .catch(function (e) { console.warn('[TM] achievement not logged:', e.message); });
+}
+
+function celebrate(text, tier, kicker, ms) {
   var el = document.createElement('div');
   el.className = 'celebrate';
-  el.innerHTML = '<span>' + (tier ? badgeSvg(tier, 30) : '') + esc(text) + '</span>';
+  el.innerHTML = '<span>' + (tier ? badgeSvg(tier, 30) : '') +
+    '<b>' + (kicker ? '<small>' + esc(kicker) + '</small>' : '') + esc(text) + '</b></span>';
   document.body.appendChild(el);
   setTimeout(function () { el.classList.add('go'); }, 20);
-  setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 3400);
+  setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, ms || 3400);
+  return el;
+}
+
+/* What the team earned since this person last looked, one after another.
+   A fresh login asks the script for everything since the previous login;
+   a phone that stayed signed in asks since it last opened the app. Nothing
+   to compare against — a first-ever login — replays nothing. */
+var REPLAY_MS = 3000, REPLAY_MAX = 12;
+
+function tierByCode(code) {
+  code = String(code || '').trim().toLowerCase();
+  return BADGE_TIERS.filter(function (x) { return x.code === code || x.key === code; })[0] || null;
+}
+
+function replayAchievements() {
+  var since = state.replaySince, url = (CFG.APPS_SCRIPT_URL || '').trim();
+  try { localStorage.setItem('tm_seen', new Date().toISOString()); } catch (e) {}
+  if (!since || !url) return Promise.resolve([]);
+  return fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') + 'action=achievements&since=' +
+                          encodeURIComponent(since), CFG.CSV_TIMEOUT_MS || 8000)
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (j) {
+      if (!j || j.success !== true) throw new Error((j && j.error) || 'achievements unavailable');
+      var me = state.user ? state.user.name : '';
+      var list = (j.achievements || []).map(function (a) {
+        return {
+          agent: String(a.agent || a.Agent || '').trim(),
+          tier: tierByCode(a.badge || a.Badge),
+          cluster: String(a.cluster || a.Cluster || '').trim(),
+          by: String(a.updated_by || a.logged_by || '').trim()
+        };
+      }).filter(function (a) {
+        /* you were there for the ones you logged yourself */
+        return a.agent && a.tier && !(me && a.by === me);
+      });
+      playAchievements(list);
+      return list;
+    })
+    .catch(function (e) { console.warn('[TM] achievements replay skipped:', e.message); return []; });
+}
+
+function playAchievements(list) {
+  var queue = list.slice(0, REPLAY_MAX), extra = list.length - queue.length, stopped = false;
+  var next = function () {
+    if (stopped) return;
+    var a = queue.shift();
+    if (!a) {
+      if (extra > 0) toast(t('andMore').replace('{n}', extra));
+      return;
+    }
+    var el = celebrate(shortAgent(a.agent) + ' ' + t('earned') + ' ' + badgeName(a.tier) +
+                       (a.cluster ? ' · ' + a.cluster : ''), a.tier, t('whileAway'), REPLAY_MS);
+    el.classList.add('celebrate-tap');               // a tap skips the rest
+    el.addEventListener('click', function () {
+      stopped = true;
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    setTimeout(next, REPLAY_MS + 250);
+  };
+  next();
 }
 
 /* ════════════════════════════════════ map ═══ */
@@ -1057,6 +1167,7 @@ function renderLeaderboard() {
   btn.setAttribute('aria-expanded', !!state.leaderboardOpen);
   btn.classList.toggle('on', !!state.leaderboardOpen);
   el.hidden = !state.leaderboardOpen;
+  checkNewBadges(stats);
   if (!state.leaderboardOpen) return;
 
   var opts = monthOptions();
@@ -1112,12 +1223,14 @@ function renderLeaderboard() {
         '<span class="lb-name" dir="auto">' + esc(s.agent) + '</span>' +
         '<span class="lb-badges">' + badges + '</span>' +
       '</div>' +
-      '<div class="lb-bar">' + segs + '</div>' +
-      '<div class="lb-meta"><b>' + s.activePct + '%</b> ' + esc(t('activeLbl')) +
-        ' <span class="lb-of">· ' + s.total + ' ' + esc(t('hospitalsLbl')) + '</span></div>' +
+      (s.guest
+        ? '<div class="lb-meta"><span class="lb-of">' + esc(t('noTerritory')) + '</span></div>'
+        : '<div class="lb-bar">' + segs + '</div>' +
+          '<div class="lb-meta"><b>' + s.activePct + '%</b> ' + esc(t('activeLbl')) +
+            ' <span class="lb-of">· ' + s.total + ' ' + esc(t('hospitalsLbl')) + '</span></div>') +
       '<div class="lb-month"><span class="lb-mlabel">' + esc(monthTitle) + '</span>' + monthTxt +
         (state.monthEstimated ? ' <em class="lb-est">' + esc(t('estTag')) + '</em>' : '') + '</div>' +
-      '<div class="lb-total"><span class="lb-mlabel">' + esc(t('totalLbl')) + '</span>' + totalTxt + '</div>' +
+      (s.guest ? '' : '<div class="lb-total"><span class="lb-mlabel">' + esc(t('totalLbl')) + '</span>' + totalTxt + '</div>') +
       detail +
     '</div>';
   }).join('');
@@ -1148,7 +1261,6 @@ function renderLeaderboard() {
       renderLeaderboard();
     });
   });
-  checkNewBadges(stats);
 }
 
 function installThemeSwitch() {
@@ -1166,7 +1278,9 @@ function installThemeSwitch() {
           '<i style="background:' + th.swatch + '"></i>' + esc(th.label) + '</button>';
       }).join('');
     $$('.tbtn', box).forEach(function (b) {
-      b.addEventListener('click', function () { applyPreset(b.dataset.key); paint(); });
+      b.addEventListener('click', function () {
+        applyPreset(b.dataset.key); paint(); saveTheme(b.dataset.key);
+      });
     });
   };
   paint();
@@ -1306,12 +1420,12 @@ function contactsHtml(m) {
 function deleteContact(m, contact) {
   state.contactDelete = null;
   toast(t('saving'));
-  postUpdate({
-    hospital_name: m.name, delete_contact: true,
+  postUpdate(hospKey(m, {
+    delete_contact: true,
     contact_role: contact.role, contact_name: contact.name
-  }).then(function (res) {
+  })).then(function (res) {
     if (!res || res.success !== true) {
-      throw new Error((res && res.error) || 'the script rejected the delete');
+      throw scriptError(res, 'the script rejected the delete');
     }
     return fetchContacts(m.name).catch(function () {
       /* fall back to removing it locally if the re-read fails */
@@ -1374,13 +1488,13 @@ function saveContact(m, form) {
   form.classList.add('is-saving');
 
   var stageBefore = stageOf(m);
-  postUpdate({
-    hospital_name: m.name, add_contact: true,
+  postUpdate(hospKey(m, {
+    add_contact: true,
     contact_role: role, contact_name: name, contact_phone: fmtPhone(phone),
     contact_notes: notes
-  }).then(function (res) {
+  })).then(function (res) {
     if (!res || res.success !== true) {
-      throw new Error((res && res.error) || 'the script rejected the contact');
+      throw scriptError(res, 'the script rejected the contact');
     }
     return fetchContacts(m.name).catch(function () {
       (state.contacts[m.name] = state.contacts[m.name] || []).push({
@@ -1400,27 +1514,44 @@ function saveContact(m, form) {
     btn.textContent = t('retry');
     err.textContent = t('saveFailed') + ' — ' + e.message;
     err.hidden = false;
+    if (e.fromScript) toast(e.message);
     console.error('[TM] add contact failed', e);
   });
 }
 
-/* The sheet keeps the whole history in one cell, one entry per line,
-   each stamped by the script. Show them all, not just the newest. */
+/* The sheet keeps the whole history in one cell. Each entry opens with the
+   script's stamp — [2026-09-30 · Alshehri] since v7, [2026-09-30] before —
+   and a note may run over several lines, so a line without a stamp belongs
+   to the entry above it. */
+function parseVisitLog(log) {
+  var out = [];
+  String(log || '').split(/\r?\n/).forEach(function (raw) {
+    var ln = raw.trim();
+    if (!ln) return;
+    var mm = ln.match(/^\[\s*(\d{4}-\d{2}-\d{2})(?:\s*[·•|,\-–—]\s*([^\]]+?))?\s*\]\s*[-–—:]?\s*([\s\S]*)$/) ||
+             ln.match(/^(\d{4}-\d{2}-\d{2})()\s*[-–—:]\s*([\s\S]*)$/);
+    if (mm) out.push({ date: mm[1], by: (mm[2] || '').trim(), text: mm[3] });
+    else if (out.length) out[out.length - 1].text += '\n' + ln;
+    else out.push({ date: '', by: '', text: ln });
+  });
+  return out;
+}
+
 function visitLogHtml(log) {
-  var lines = String(log || '').split(/\r?\n/)
-    .map(function (l) { return l.trim(); }).filter(Boolean);
-  if (!lines.length) return '';
+  var entries = parseVisitLog(log);
+  if (!entries.length) return '';
   return '<div class="log-head">' + esc(t('fVisitLog')) +
-    ' <span>' + lines.length + ' ' + esc(t('entries')) + '</span></div>' +
-    '<ul class="log-list">' + lines.map(function (ln) {
-      var mm = ln.match(/^\[?\s*(\d{4}-\d{2}-\d{2})\s*\]?\s*[-–—:]?\s*([\s\S]*)$/);
-      return '<li><time>' + esc(mm ? mm[1] : '·') + '</time><span>' +
-             esc(mm ? mm[2] : ln) + '</span></li>';
+    ' <span>' + entries.length + ' ' + esc(t('entries')) + '</span></div>' +
+    '<ul class="log-list">' + entries.map(function (en) {
+      return '<li><time>' + esc(en.date || '·') + '</time><span dir="auto">' +
+             (en.by ? '<em class="log-by">' + esc(en.by) + '</em>' : '') +
+             esc(en.text) + '</span></li>';
     }).join('') + '</ul>';
 }
 
 function selectMission(m) {
   state.selected = m.id;
+  state.selectedSite = null;
   var stage = stageOf(m), s = STAGES[stage];
   var target = m.target != null ? m.target : CFG.PUSH_TARGET;
   var prod = (m.adopted != null && target != null)
@@ -1508,6 +1639,7 @@ function closePanel() {
   $('#panel').classList.remove('open');
   $('#panel').setAttribute('aria-hidden', 'true');
   state.selected = null;
+  state.selectedSite = null;
   $$('.pin-wrap.is-selected').forEach(function (e) { e.classList.remove('is-selected'); });
 }
 
@@ -1575,6 +1707,7 @@ function refresh() {
   renderRegions(state.geo, st);
   renderPins();
   renderWarehouses();
+  renderClusterSites();
   updateFog(st, base);
 }
 
@@ -1585,6 +1718,7 @@ function boot() {
     var pref = localStorage.getItem('tm_supply');
     state.showSupply = pref === null ? (CFG.SHOW_SUPPLY_DEFAULT !== false) : pref === '1';
   } catch (e) { state.showSupply = CFG.SHOW_SUPPLY_DEFAULT !== false; }
+  try { state.showClusters = localStorage.getItem('tm_clusters') !== '0'; } catch (e) {}
   applyLang();
   state.preset = activePreset();
   initMap();
@@ -1606,7 +1740,9 @@ function boot() {
     applyLang();
     refresh();
     if (state.supplyLabel) state.supplyLabel();
+    if (state.clusterLabel) state.clusterLabel();
     if (state.themePaint) state.themePaint();
+    if (state.userPaint) state.userPaint();
     if (state.selected) {
       var m = state.missions.filter(function (x) { return x.id === state.selected; })[0];
       if (m) selectMission(m);
@@ -1629,7 +1765,7 @@ function boot() {
   loadProducts();
   loadContacts().then(function () { if (state.missions.length) refresh(); });
   loadHistory().then(function () { renderLeaderboard(); });
-  var whReady = loadWarehouses();
+  var whReady = loadWarehouses(), csReady = loadClusterSites();
   Promise.all([loadData(), fetch(CFG.REGIONS_URL).then(function (r) { return r.json(); })])
     .then(function (res) {
       var d = res[0];
@@ -1648,10 +1784,14 @@ function boot() {
       if (new URLSearchParams(location.search).get('badges') === '1') openBadgeGuide();
       installPreviewToggle();
       installThemeSwitch();
-      whReady.then(function () {
+      installUserBox();
+      Promise.all([whReady, csReady]).then(function () {
         installWarehouseToggle();
+        installClusterToggle();
         renderWarehouses();
+        renderClusterSites();
       });
+      replayAchievements();
       if (d.error) console.info('[TM] snapshot in use because: ' + d.error);
     })
     .catch(function (e) {
@@ -1711,7 +1851,15 @@ function frameTerritory(tries) {
   }
   var b = L.latLngBounds(state.missions.map(function (m) { return [m.dlat, m.dlng]; }));
   map.setMinZoom(CFG.MIN_ZOOM);
-  map.fitBounds(b, { animate: false, paddingTopLeft: [18, 96], paddingBottomRight: [18, 80] });
+  /* Pad by what is really on screen. The header grew a Progress button and
+     the footer a second filter row, and on an iPhone the notch pushes the
+     header further down — fixed numbers left the northern pins, and the
+     Sakaka depot, sitting under the button where they could not be tapped. */
+  var box = map.getContainer().getBoundingClientRect();
+  var lb = $('#lb-toggle'), bars = $('.bottom-bars');
+  var padTop = (lb ? lb.getBoundingClientRect().bottom - box.top : 96) + 16;
+  var padBottom = (bars ? box.bottom - bars.getBoundingClientRect().top : 80) + 16;
+  map.fitBounds(b, { animate: false, paddingTopLeft: [18, padTop], paddingBottomRight: [18, padBottom] });
   var z = map.getZoom();
   /* one half step of breathing room past the full-country view; further
      out the map is only a small shape in a lot of sea */
@@ -2113,14 +2261,15 @@ function saveQuickVisit(m, form) {
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
   form.classList.add('is-saving');
 
-  postUpdate({ hospital_name: m.name, quick_visit: true, visit_note: note })
+  postUpdate(hospKey(m, { quick_visit: true, visit_note: note }))
     .then(function (res) {
       if (!res || res.success !== true) {
-        throw new Error((res && res.error) || 'the script rejected the visit');
+        throw scriptError(res, 'the script rejected the visit');
       }
       var today = todayISO();
       m.lastVisit = today;
-      m.visitLog = '[' + today + '] ' + note + (m.visitLog ? '\n' + m.visitLog : '');
+      m.visitLog = '[' + today + (state.user ? ' · ' + state.user.name : '') + '] ' + note +
+                   (m.visitLog ? '\n' + m.visitLog : '');
       var moved = false;
       if (res.stage) {
         var shown = stageOf(m);
@@ -2142,6 +2291,7 @@ function saveQuickVisit(m, form) {
       btn.textContent = t('retry');
       err.textContent = t('saveFailed') + ' — ' + e.message;
       err.hidden = false;
+      if (e.fromScript) toast(e.message);
       console.error('[TM] quick visit failed', e);
     });
 }
@@ -2341,12 +2491,11 @@ function saveEdit(m, form) {
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
   form.classList.add('is-saving');
 
-  var payload = { hospital_name: m.name };
-  Object.keys(fields).forEach(function (k) { payload[k] = fields[k]; });
+  var payload = hospKey(m, fields);
 
   postUpdate(payload).then(function (res) {
     if (!res || res.success !== true) {
-      throw new Error((res && res.error) || 'the script rejected the update');
+      throw scriptError(res, 'the script rejected the update');
     }
 
     /* reflect the edit locally so the panel is right straight away */
@@ -2390,6 +2539,7 @@ function saveEdit(m, form) {
     btn.textContent = t('retry');
     err.textContent = t('saveFailed') + ' — ' + e.message;
     err.hidden = false;
+    if (e.fromScript) toast(e.message);
     console.error('[TM] save failed', e);
   });
 }
@@ -2413,9 +2563,33 @@ function flashPin(m) {
    There is no JSONP fallback on purpose: this web app's doGet only serves
    test/products/warehouses, so a retry over GET would not write anything
    and could look like success. A failed POST is reported as a failure. */
+/* Every hospital write names its row twice: the Hospital ID, which the
+   script matches on, and the name, which it keeps for the log and for rows
+   that predate the ID column (the offline snapshot has none). */
+function hospKey(m, extra) {
+  var o = {};
+  if (m.hid) o.hospital_id = m.hid;
+  o.hospital_name = m.name;
+  Object.keys(extra || {}).forEach(function (k) { o[k] = extra[k]; });
+  return o;
+}
+
+/* The script's own words ("two hospitals share this name", "that rename
+   would create a duplicate") are the useful part of a refusal, so they go
+   to the agent verbatim. fromScript tells a refusal from a dead network. */
+function scriptError(res, fallback) {
+  var e = new Error((res && res.error) || fallback);
+  e.fromScript = !!(res && res.error);
+  return e;
+}
+
 function postUpdate(payload) {
   var url = (CFG.APPS_SCRIPT_URL || '').trim();
   if (!url) return Promise.reject(new Error('APPS_SCRIPT_URL is not set'));
+  /* who did it — on everything except the login itself */
+  if (!payload.login && state.user && state.user.name && payload.updated_by == null) {
+    payload.updated_by = state.user.name;
+  }
   var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   var timer = setTimeout(function () { if (ctl) ctl.abort(); }, CFG.SAVE_TIMEOUT_MS || 20000);
 
@@ -2647,6 +2821,7 @@ function selectWarehouse(w) {
   var st = stats(state.missions), centres = {};
   Object.keys(st.clusters).forEach(function (k) { centres[st.clusters[k].short] = st.clusters[k]; });
   state.selected = null;
+  state.selectedSite = null;
 
   var serves = w.serves.map(function (sv) {
     var c = centres[sv.short];
@@ -2735,7 +2910,7 @@ function saveWarehouse(w, form) {
 
   postUpdate(payload).then(function (res) {
     if (!res || res.success !== true) {
-      throw new Error((res && res.error) || 'the script rejected the update');
+      throw scriptError(res, 'the script rejected the update');
     }
     /* the same endpoint serves hospitals; make sure this landed on a depot */
     if (res.type && res.type !== 'warehouse') {
@@ -2778,14 +2953,419 @@ function installWarehouseToggle() {
 }
 
 
-/* ════════════════════════════════════ gate ═══ */
-function sha256(str) {
-  var enc = new TextEncoder().encode(str);
-  return crypto.subtle.digest('SHA-256', enc).then(function (buf) {
-    return Array.prototype.map.call(new Uint8Array(buf), function (b) {
-      return ('00' + b.toString(16)).slice(-2);
-    }).join('');
+/* ═══════════════════════════════════ health-cluster offices ═══ */
+/* One marker per cluster headquarters, above the fog like the depots. The
+   script's `key` is the same string the hospitals carry in their Cluster
+   column, which is what ties an office to its hospitals. */
+function normClusterSite(c) {
+  var key = String(pickField(c, ['key', 'Key'])).trim();
+  var name = String(pickField(c, ['name', 'Name', 'Cluster'])).trim();
+  return {
+    name: name, key: key,
+    city: String(pickField(c, ['city', 'City'])).trim(),
+    notes: String(pickField(c, ['notes', 'Notes'])).trim(),
+    lat: num(pickField(c, ['lat', 'Latitude', 'latitude'])),
+    lng: num(pickField(c, ['lng', 'Longitude', 'longitude'])),
+    def: resolveCluster(key) || resolveCluster(name)
+  };
+}
+
+function loadClusterSites() {
+  var url = (CFG.APPS_SCRIPT_URL || '').trim();
+  var ok = function (j) {
+    return (j.clusters || []).map(normClusterSite).filter(validWarehouse);
+  };
+  var live = url
+    ? fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') + 'action=clusters',
+                       CFG.CSV_TIMEOUT_MS || 8000)
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (j) {
+          if (!j || j.success !== true) throw new Error((j && j.error) || 'no clusters returned');
+          var list = ok(j);
+          if (!list.length) throw new Error('cluster rows had no usable name/coordinates');
+          return list;
+        })
+    : Promise.reject(new Error('no endpoint'));
+
+  return live.catch(function (e) {
+    console.warn('[TM] clusters from the web app failed (' + e.message + '), using the bundled copy');
+    return fetch(CFG.CLUSTERS_FALLBACK_URL).then(function (r) { return r.json(); }).then(ok);
+  }).then(function (list) {
+    state.clusterSites = list;
+    return list;
+  }).catch(function (e) {
+    console.warn('[TM] clusters unavailable:', e.message);
+    state.clusterSites = [];
+    return [];
   });
+}
+
+function clusterHospitals(c) {
+  return state.missions.filter(function (m) {
+    return m.cluster === c.key || (c.def && m.clusterShort === c.def.short);
+  });
+}
+
+function clusterMark(size) {
+  return '<svg class="cs-mark" viewBox="0 0 28 28" width="' + size + '" height="' + size +
+    '" aria-hidden="true">' +
+      '<rect x="1.5" y="1.5" width="25" height="25" rx="7" fill="#6d4aff" stroke="#d6caff" stroke-width="1.5"/>' +
+      '<path fill="#fff" d="M8 21.5V8.2c0-.7.5-1.2 1.2-1.2h6.1c.7 0 1.2.5 1.2 1.2v3.3h2.3c.7 0 1.2.5 1.2 1.2v8.8z"/>' +
+      '<path fill="#6d4aff" d="M10.3 9.4h1.7v1.7h-1.7zm2.8 0h1.7v1.7h-1.7zm-2.8 2.9h1.7V14h-1.7zm2.8 0h1.7V14h-1.7z' +
+        'm-2.8 2.9h1.7v1.7h-1.7zm2.8 0h1.7v1.7h-1.7zm3.7-1.3h1.2v1.3h-1.2zm0 2.3h1.2v1.3h-1.2zm-5.1 1.9h1.9v3.4h-1.9z"/>' +
+    '</svg>';
+}
+
+/* A cluster office is entered at its city's centre — the very point the
+   city's hospitals fan out from, often the local depot's point too, and for
+   Jeddah the other Jeddah cluster's. A marker dead on that point hides, or
+   hides under, whatever else is there. So an office is always drawn a
+   marker's width off its point, and offices sharing a point each take a
+   different corner. */
+var CS_SLOTS = [[26, 26], [26, -4], [-4, 26], [-4, -4]];
+
+function clusterSlots() {
+  var near = function (a, b) { return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lng - b.lng) < 0.01; };
+  var sites = state.clusterSites || [];
+  return sites.map(function (c, i) {
+    var before = sites.slice(0, i).filter(function (o) { return near(o, c); }).length;
+    return CS_SLOTS[before % CS_SLOTS.length];
+  });
+}
+
+function renderClusterSites() {
+  var map = state.map;
+  (state.clusterLayers || []).forEach(function (l) { map.removeLayer(l); });
+  state.clusterLayers = [];
+  if (!state.showClusters || !(state.clusterSites || []).length) return;
+  var slots = clusterSlots();
+  state.clusterSites.forEach(function (c, i) {
+    var mk = L.marker([c.lat, c.lng], {
+      icon: L.divIcon({ className: 'cs-wrap', html: clusterMark(22), iconSize: [22, 22], iconAnchor: slots[i] }),
+      /* under the depots (500) and the red action pins (600): an office is
+         the larger mark, so it is the one that can afford to be overlapped */
+      title: c.name, zIndexOffset: 450, riseOnHover: true
+    }).addTo(map);
+    mk.on('click', function () { selectClusterSite(c); });
+    state.clusterLayers.push(mk);
+  });
+}
+
+function fetchSiteContacts(c) {
+  var url = (CFG.APPS_SCRIPT_URL || '').trim();
+  if (!url) return Promise.reject(new Error('no endpoint'));
+  return fetchWithTimeout(url + (url.indexOf('?') > -1 ? '&' : '?') +
+                          'action=contacts&site=' + encodeURIComponent(c.name),
+                          CFG.CSV_TIMEOUT_MS || 8000)
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (j) {
+      if (!j || j.success !== true) throw scriptError(j, 'contacts lookup failed');
+      state.siteContacts[c.name] = (j.contacts || []).map(function (x) {
+        return {
+          role: String(x.role || '').trim(), name: String(x.name || '').trim(),
+          phone: String(x.phone || '').trim(), notes: String(x.notes || '').trim()
+        };
+      });
+      return state.siteContacts[c.name];
+    });
+}
+
+function selectClusterSite(c) {
+  state.selected = null;
+  state.selectedSite = c.name;
+  var list = clusterHospitals(c), st = stats(list), pct = Math.round((st.pct || 0) * 100);
+  var contacts = state.siteContacts[c.name], open = state.siteContactsOpen;
+  var en = c.def && c.def.en ? c.def.en : '';
+
+  var segs = [1, 2, 3, 4].map(function (n) {
+    var w = list.length ? (st.byStage[n] / list.length) * 100 : 0;
+    return w ? '<i class="seg c' + n + '" style="width:' + w.toFixed(2) + '%"></i>' : '';
+  }).join('');
+  var stages = STAGES.map(function (x) {
+    return '<div class="row"><span class="row-k"><i class="cs-dot stage-' + x.id + '"></i>' +
+      esc(stageName(x.id)) + '</span><span class="row-v">' + st.byStage[x.id] + '</span></div>';
+  }).join('');
+
+  var rows = !contacts
+    ? '<p class="ct-empty">' + esc(t('loadingLbl')) + '</p>'
+    : (contacts.length
+        ? contacts.map(function (k) {
+            return '<div class="ct"><span class="ct-role">' + esc(k.role || t('contact')) + '</span>' +
+              '<span class="ct-name" dir="auto">' + esc(k.name || t('none')) + '</span>' +
+              (k.phone
+                ? '<a class="ct-tel" href="' + esc(telHref(k.phone)) + '">' + esc(fmtPhone(k.phone)) + '</a>'
+                : '<span class="ct-tel ct-muted">' + esc(t('none')) + '</span>') +
+              (k.notes ? '<span class="ct-notes" dir="auto">' + esc(k.notes) + '</span>' : '') + '</div>';
+          }).join('')
+        : '<p class="ct-empty">' + esc(t('noContacts')) + '</p>');
+
+  $('#panel-body').innerHTML =
+    '<div class="p-head cs-head">' +
+      '<span class="p-badge">' + esc(t('clusterOffice')) + '</span>' +
+      '<h2 class="p-name" dir="auto">' + esc(c.name) + '</h2>' +
+      '<p class="p-loc">' + esc(c.city) + (en ? ' · ' + esc(en) : '') + '</p>' +
+    '</div>' +
+    '<div class="cs-progress">' +
+      '<div class="cs-pct"><b>' + pct + '%</b> ' + esc(t('conquered')) +
+        ' <span>· ' + list.length + ' ' + esc(t('hospitals')) + '</span></div>' +
+      '<div class="lb-bar">' + segs + '</div>' +
+    '</div>' +
+    '<div class="contacts' + (open ? ' open' : '') + '">' +
+      '<button type="button" class="contacts-head" id="cs-contacts-toggle" aria-expanded="' + !!open + '">' +
+        '<span>' + esc(t('contacts')) + ' <b>' + (contacts ? contacts.length : '…') + '</b></span>' +
+        '<i class="ct-caret">▾</i></button>' +
+      '<div class="contacts-body"' + (open ? '' : ' hidden') + '>' + rows +
+        (editEnabled() ? '<button type="button" class="ct-add" id="cs-contact-add">+ ' +
+          esc(t('addContact')) + '</button>' : '') +
+      '</div></div>' +
+    '<div class="p-rows">' + stages + (c.notes ? row(t('notes'), c.notes) : '') + '</div>' +
+    '<p class="loc-msg" id="cs-loc-msg" hidden></p>' +
+    '<div class="p-actions">' +
+      (list.length ? '<button type="button" class="act" id="cs-show">' + esc(t('showHospitals')) + '</button>' : '') +
+      '<a class="act" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
+        c.lat + ',' + c.lng + '">➤ ' + t('directions') + '</a>' +
+    '</div>' +
+    (editEnabled() ? '<div class="p-actions p-edit-row">' +
+      '<button type="button" class="act act-edit" id="cs-loc-btn">📍 ' + esc(t('useMyLocation')) + '</button>' +
+    '</div>' : '');
+
+  $('#cs-contacts-toggle').addEventListener('click', function () {
+    state.siteContactsOpen = !state.siteContactsOpen;
+    selectClusterSite(c);
+  });
+  var add = $('#cs-contact-add');
+  if (add) add.addEventListener('click', function () { openSiteContactForm(c); });
+  var loc = $('#cs-loc-btn');
+  if (loc) loc.addEventListener('click', function () { setClusterLocation(c); });
+  var show = $('#cs-show');
+  if (show) show.addEventListener('click', function () {
+    state.clusterFilter = list[0].cluster;
+    closePanel();
+    refresh();
+    state.map.fitBounds(L.latLngBounds(list.map(function (m) { return [m.dlat, m.dlng]; })).pad(0.35),
+                        { animate: true });
+  });
+
+  $('#panel').classList.add('open');
+  $('#panel').setAttribute('aria-hidden', 'false');
+  $$('.pin-wrap.is-selected').forEach(function (e) { e.classList.remove('is-selected'); });
+
+  if (!contacts) {
+    fetchSiteContacts(c).catch(function (e) {
+      console.warn('[TM] cluster contacts unavailable:', e.message);
+      state.siteContacts[c.name] = [];
+    }).then(function () {
+      if (state.selectedSite === c.name && !$('#panel-body form')) selectClusterSite(c);
+    });
+  }
+}
+
+function openSiteContactForm(c) {
+  if (!editEnabled()) { toast(t('editOff')); return; }
+  var roles = (CFG.CLUSTER_ROLES || ['Other']).map(function (r) {
+    return '<option value="' + esc(r) + '">' + esc(r) + '</option>';
+  }).join('');
+  $('#panel-body').innerHTML =
+    '<form id="cs-form" class="edit">' +
+      '<div class="edit-head"><h2>' + esc(t('addContact')) + '</h2>' +
+        '<p dir="auto">' + esc(c.name) + '</p></div>' +
+      '<div class="fld"><label class="fld-k" for="cs-role">' + esc(t('role')) + '</label>' +
+        '<select class="in" id="cs-role">' + roles + '</select></div>' +
+      '<div class="fld"><label class="fld-k" for="cs-name">' + esc(t('nameLbl')) + '</label>' +
+        '<input class="in" id="cs-name" type="text" dir="auto"></div>' +
+      '<div class="fld"><label class="fld-k" for="cs-phone">' + esc(t('phone')) + '</label>' +
+        '<input class="in" id="cs-phone" type="tel" inputmode="tel"></div>' +
+      '<div class="fld"><label class="fld-k" for="cs-notes">' + esc(t('notesLbl')) + '</label>' +
+        '<input class="in" id="cs-notes" type="text" dir="auto"></div>' +
+      '<p class="edit-err" id="cs-err" hidden role="alert"></p>' +
+      '<div class="edit-actions">' +
+        '<button type="button" class="act" id="cs-cancel">' + esc(t('cancel')) + '</button>' +
+        '<button type="submit" class="act act-call" id="cs-save">' + esc(t('save')) + '</button>' +
+      '</div>' +
+    '</form>';
+  var form = $('#cs-form');
+  $('#cs-cancel').addEventListener('click', function () { selectClusterSite(c); });
+  form.addEventListener('submit', function (e) { e.preventDefault(); saveSiteContact(c, form); });
+  $('#panel').scrollTop = 0;
+  $('#cs-name').focus();
+}
+
+function saveSiteContact(c, form) {
+  var role = $('#cs-role').value, name = String($('#cs-name').value).trim();
+  var phone = String($('#cs-phone').value).trim(), notes = String($('#cs-notes').value).trim();
+  var err = $('#cs-err'), btn = $('#cs-save');
+  if (!name) {
+    err.textContent = t('nameLbl') + ' — ' + t('required');
+    err.hidden = false;
+    $('#cs-name').focus();
+    return;
+  }
+  err.hidden = true;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
+  form.classList.add('is-saving');
+
+  postUpdate({
+    add_contact: true, site_name: c.name,
+    contact_role: role, contact_name: name, contact_phone: phone ? fmtPhone(phone) : '',
+    contact_notes: notes
+  }).then(function (res) {
+    if (!res || res.success !== true) throw scriptError(res, 'the script rejected the contact');
+    return fetchSiteContacts(c).catch(function () {
+      (state.siteContacts[c.name] = state.siteContacts[c.name] || []).push({
+        role: role, name: name, phone: phone ? fmtPhone(phone) : '', notes: notes
+      });
+    });
+  }).then(function () {
+    form.classList.remove('is-saving');
+    state.siteContactsOpen = true;
+    toast('✓ ' + t('contactSaved'));
+    selectClusterSite(c);
+  }).catch(function (e) {
+    form.classList.remove('is-saving');
+    btn.disabled = false;
+    btn.textContent = t('retry');
+    err.textContent = t('saveFailed') + ' — ' + e.message;
+    err.hidden = false;
+    if (e.fromScript) toast(e.message);
+    console.error('[TM] add cluster contact failed', e);
+  });
+}
+
+/* Same guards as a hospital's location: a weak fix is refused, and a fix
+   far from the listed point needs a second, deliberate tap. */
+function setClusterLocation(c) {
+  var btn = $('#cs-loc-btn'), msg = $('#cs-loc-msg');
+  var say = function (text, kind) {
+    msg.textContent = text; msg.className = 'loc-msg loc-' + kind; msg.hidden = false;
+  };
+  var idle = function (label) {
+    btn.disabled = false;
+    btn.innerHTML = '📍 ' + esc(label || t('useMyLocation'));
+  };
+  var send = function (lat, lng) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
+    postUpdate({ cluster_name: c.name, latitude: lat.toFixed(6), longitude: lng.toFixed(6) })
+      .then(function (res) {
+        if (!res || res.success !== true) throw scriptError(res, 'the script rejected the location');
+        c.lat = +lat.toFixed(6); c.lng = +lng.toFixed(6);
+        state.sitePending = null;
+        renderClusterSites();
+        toast('✓ ' + t('locSaved'));
+        if (state.selectedSite === c.name) selectClusterSite(c);
+      })
+      .catch(function (e) {
+        idle();
+        say(t('saveFailed') + ' — ' + e.message, 'err');
+        if (e.fromScript) toast(e.message);
+        console.error('[TM] cluster location failed', e);
+      });
+  };
+
+  var pend = state.sitePending;
+  if (pend && pend.name === c.name) { send(pend.lat, pend.lng); return; }
+  if (!navigator.geolocation) { say(t('gpsUnsupported'), 'err'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('locating'));
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    if (!$('#cs-loc-btn')) return;
+    var lat = pos.coords.latitude, lng = pos.coords.longitude;
+    var acc = Math.round(pos.coords.accuracy || 0);
+    if (acc > GPS_MAX_ACCURACY_M) { idle(); say(t('gpsWeak').replace('{m}', acc), 'err'); return; }
+    var km = L.latLng(c.lat, c.lng).distanceTo([lat, lng]) / 1000;
+    if (km > GPS_FAR_KM) {
+      state.sitePending = { name: c.name, lat: lat, lng: lng };
+      idle(t('useAnywaySite'));
+      say(t('gpsFarSite').replace('{km}', Math.round(km)), 'warn');
+      return;
+    }
+    send(lat, lng);
+  }, function (err) {
+    if (!$('#cs-loc-btn')) return;
+    idle();
+    say(err && err.code === 1 ? t('gpsDenied') : t('gpsFailed'), 'err');
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+}
+
+function installClusterToggle() {
+  var drawer = $('#drawer'), btn = document.createElement('button');
+  btn.className = 'supply-toggle cs-toggle' + (state.showClusters ? ' on' : '');
+  btn.innerHTML = '<span>' + clusterMark(17) + '</span> <b></b>';
+  var label = function () {
+    btn.querySelector('b').textContent =
+      t('clusterOffices') + ' · ' + (state.clusterSites || []).length;
+  };
+  label();
+  btn.addEventListener('click', function () {
+    state.showClusters = !state.showClusters;
+    btn.classList.toggle('on', state.showClusters);
+    try { localStorage.setItem('tm_clusters', state.showClusters ? '1' : '0'); } catch (e) {}
+    renderClusterSites();
+  });
+  drawer.insertBefore(btn, $('#cluster-list'));
+  state.clusterLabel = label;
+}
+
+
+/* ════════════════════════════════════ login ═══ */
+/* Each person signs in with their own code; the script answers with who
+   they are. Only that answer is kept on the phone — never the code — and it
+   is what stamps updated_by on every write. It is attribution, not a lock:
+   the data is public to anyone holding the link, as before. */
+function storedUser() {
+  try {
+    var u = JSON.parse(localStorage.getItem('tm_user') || 'null');
+    return u && u.name ? u : null;
+  } catch (e) { return null; }
+}
+
+function keepUser(u) {
+  state.user = u;
+  try { localStorage.setItem('tm_user', JSON.stringify(u)); } catch (e) {}
+}
+
+function themeKey(raw) {
+  var k = String(raw || '').trim().toLowerCase();
+  return (window.TM_THEMES || []).some(function (x) { return x.key === k; }) ? k : '';
+}
+
+function saveTheme(key) {
+  if (!state.user || !editEnabled()) return;
+  state.user.theme = key;
+  keepUser(state.user);
+  postUpdate({ save_theme: true, user: state.user.name, theme: key })
+    .then(function (res) {
+      if (res && res.success === false) console.warn('[TM] theme not saved:', res.error);
+    })
+    .catch(function (e) { console.warn('[TM] theme not saved:', e.message); });
+}
+
+function switchUser() {
+  try {
+    localStorage.removeItem('tm_user');
+    localStorage.removeItem('tm_seen');
+  } catch (e) {}
+  location.reload();
+}
+
+function installUserBox() {
+  var drawer = $('#drawer');
+  if (!drawer || !state.user || $('#user-box')) return;
+  var box = document.createElement('div');
+  box.id = 'user-box';
+  box.className = 'user-box';
+  var paint = function () {
+    box.innerHTML =
+      '<span class="ub-who"><b dir="auto">' + esc(state.user.name) + '</b>' +
+        (state.user.role ? '<i>' + esc(state.user.role) + '</i>' : '') + '</span>' +
+      '<button type="button" class="ub-switch" id="user-switch">' + esc(t('switchUser')) + '</button>';
+    $('#user-switch').addEventListener('click', switchUser);
+  };
+  drawer.insertBefore(box, $('#drawer-stats'));
+  paint();
+  state.userPaint = paint;
 }
 
 function startApp() {
@@ -2806,27 +3386,47 @@ function applyDevSwitches() {
 
 function initGate() {
   applyDevSwitches();
+  try { localStorage.removeItem('tm_auth'); } catch (e) {}     // the old shared code
+  state.user = storedUser();
+  if (state.user) {
+    /* still signed in: "away" is measured from the last time this phone opened the app */
+    try { state.replaySince = localStorage.getItem('tm_seen') || null; } catch (e) {}
+    return startApp();
+  }
   if (!CFG.GATE_ENABLED) return startApp();
-  var ok = false;
-  try { ok = localStorage.getItem('tm_auth') === CFG.PASSCODE_SHA256; } catch (e) {}
-  if (ok) return startApp();
 
+  var form = $('#gate-form'), input = $('#gate-input'), err = $('#gate-error'), btn = $('.gate-btn');
+  var fail = function (text) {
+    err.textContent = text;
+    err.hidden = false;
+    input.value = '';
+    btn.disabled = false;
+    btn.textContent = t('gateBtn');
+    $('.gate-card').classList.remove('shake');
+    void $('.gate-card').offsetWidth;
+    $('.gate-card').classList.add('shake');
+    input.focus();
+  };
   $('#gate').hidden = false;
-  $('#gate-form').addEventListener('submit', function (e) {
+  form.addEventListener('submit', function (e) {
     e.preventDefault();
-    var v = $('#gate-input').value;
-    sha256(v).then(function (h) {
-      if (h === CFG.PASSCODE_SHA256) {
-        try { localStorage.setItem('tm_auth', h); } catch (e2) {}
-        startApp();
-      } else {
-        $('#gate-error').hidden = false;
-        $('#gate-input').value = '';
-        $('#gate-card') && $('#gate-card').classList.add('shake');
-        $('.gate-card').classList.remove('shake');
-        void $('.gate-card').offsetWidth;
-        $('.gate-card').classList.add('shake');
-      }
+    var code = input.value;
+    if (!code || btn.disabled) return;
+    err.hidden = true;
+    btn.disabled = true;
+    btn.textContent = '…';
+    postUpdate({ login: true, passcode: code }).then(function (res) {
+      var u = res && res.user;
+      if (!u || !u.name || res.success === false) { fail((res && res.error) || t('gateErr')); return; }
+      var theme = themeKey(u.theme);
+      keepUser({ name: String(u.name), role: String(u.role || ''), theme: theme });
+      /* first-ever login has no previous_login, and so nothing to replay */
+      state.replaySince = res.previous_login || null;
+      if (theme) { try { localStorage.setItem('tm_theme', theme); } catch (e2) {} }
+      input.value = '';
+      startApp();
+    }).catch(function (e2) {
+      fail(t('gateOffline') + ' (' + e2.message + ')');
     });
   });
 }

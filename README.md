@@ -78,18 +78,22 @@ As stages rise, fog lifts around each hospital. When a whole province reaches
 
 ---
 
-## Access code
+## Signing in
 
-The app is behind a client-side passcode. Default: **`territory2030`**
+Each person has their own code. The gate posts `{login: true, passcode}` to
+the Apps Script, which answers `{user: {name, role, theme}, previous_login}`.
+The phone keeps that `user` in `localStorage` — never the code — so people
+stay signed in; **Switch user** in the drawer forgets it and returns to the
+gate. No codes, and no hash of one, live in this repository.
 
-```bash
-python3 tools/set_passcode.py "your new code"
-```
+From then on every write carries `updated_by: <user.name>` (added in one
+place, `postUpdate()`), the user's saved theme is applied, and a change of
+theme is sent back as `{save_theme: true, user, theme}`.
 
-**This is a deterrent, not security.** The page is public on GitHub Pages and
-all data is downloaded by the browser, so anyone determined can read it.
-Treat the URL as semi-public and don't put anything in the sheet you couldn't
-live with leaking.
+**This is attribution, not security.** The page is public on GitHub Pages and
+all data is downloaded by the browser, so anyone determined can read it, and
+a name in `localStorage` can be edited. Treat the URL as semi-public and
+don't put anything in the sheet you couldn't live with leaking.
 
 ---
 
@@ -104,10 +108,15 @@ disappears with it.
 ### The contract
 
 `POST` a flat JSON body (sent as `text/plain`, so no CORS preflight — Apps
-Script cannot answer one). `hospital_name` must match column A exactly:
+Script cannot answer one). Every hospital write sends the row's
+`hospital_id` (the sheet's Hospital ID column, `H001`…) **and** its
+`hospital_name`; the script matches on the ID, refuses a name that is
+ambiguous, and refuses a rename that would create a duplicate. Its `error`
+text is shown to the agent as-is, in the form and in a toast.
 
 ```json
-{ "hospital_name": "مستشفى الملك فيصل ( الششه)",
+{ "hospital_id": "H017", "hospital_name": "مستشفى الملك فيصل ( الششه)",
+  "updated_by": "Abdullah Alshehri",
   "cssd_manager": "…", "phone": "…", "push_adopted": "3", "informed": "Y",
   "has_incubator": "Y", "incubator_serial": "30", "dosing_system": "N",
   "shortage_items": "BT224, GUL Ultra Pouch", "action_required": "None",
@@ -209,10 +218,27 @@ never silently approximate. The log is re-read after any save that moves a
 stage. It reads every agent out of the data, so a fourth agent
 appears on their own the day they own a hospital.
 
+History rows carry `updated_by`. A move is credited to **whoever made it**,
+not to the hospital's owner; someone who only works other people's hospitals
+gets a card showing that month's moves and no territory.
+
 A badge is earned per cluster when **all** of that agent's hospitals in it
-pass a stage: 🔵 contacted, 🟠 visited, 🟢 partial, ⭐ activated. Counts sit
-beside the agent's name and tapping one lists its clusters. A badge that
-wasn't there on the last load flashes briefly over the map.
+pass a stage — First Contact, Field Visit, Foothold, Full Conquest. Badges
+stay with the territory's owner whoever did the work. Counts sit beside the
+agent's name and tapping one lists its clusters.
+
+When a phone notices a badge that was not there last time, it celebrates and
+posts `{log_achievement: true, agent, badge, cluster}` (`badge` is
+`blue|orange|green|gold`; the script ignores repeats). On opening the app,
+`?action=achievements&since=…` is replayed one banner at a time — "While
+you were away: Hamthi earned First Contact · Aseer" — skipping the ones the
+reader logged themselves; a tap skips the rest. `since` is the script's
+`previous_login` after a real sign-in, or the last time this phone opened
+the app when it stayed signed in. A first-ever login replays nothing.
+
+Visit-log entries arrive as `[2026-09-30 · Alshehri] note`; the name is
+shown as a chip beside the note, and lines without a stamp are treated as
+the rest of the note above them.
 
 ### Themes
 
@@ -311,6 +337,25 @@ Check the endpoint from the browser console on the live site:
 TM.postUpdate({ hospital_name: '__nope__' })   // → {success:false, error:'Hospital not found: __nope__'}
 ```
 
+### Cluster offices
+
+`?action=clusters` returns each health cluster's office — `name`, `key`,
+`city`, `lat`, `lng`. `key` is the same string the hospitals carry in their
+Cluster column, which is how an office is tied to its hospitals. Offices are
+drawn as a violet building above the fog, with their own toggle under the
+Nupco one. Because an office is entered at its city's centre — the point the
+city's hospitals fan out from, and often the depot's point — it is always
+drawn one marker's width off its coordinate, and offices sharing a point
+take different corners.
+
+The panel shows the cluster's name, how far its hospitals have come, a
+collapsible **Contacts (n)** read from `?action=contacts&site=<name>`, and
+**+ Add contact**, which posts `add_contact` with `site_name` = the cluster
+name (roles in `CLUSTER_ROLES`). **Set to my location** posts
+`{cluster_name, latitude, longitude}` with the same guards as a hospital:
+a weak fix is refused and a far one needs a second tap.
+`data/clusters.json` is the offline copy.
+
 ### Security
 
 The web app is deployed as "Anyone", which is what lets phones post without
@@ -339,7 +384,7 @@ of them on the live site without a deploy:
 
 `?sim=half` and `?sim=full` paint deterministic stages over the real data so
 a half-won or fully-won map can be judged, and `?nogate=1` skips the
-passcode. All three are ignored unless the hostname is localhost, so they
+sign-in. All three are ignored unless the hostname is localhost, so they
 cannot reach the field build. They only affect rendering — nothing is
 written anywhere.
 
@@ -412,13 +457,14 @@ vertices so it stays light on mobile).
 ```
 index.html            shell, gate, HUD, panel markup
 css/app.css           all styling (mobile-first, RTL-aware)
-js/config.js          feed URL, passcode hash, map + fog tuning   ← edit this
+js/config.js          feed URL, script URL, map + fog tuning     ← edit this
 js/i18n.js            EN/AR strings and the 5 stage definitions
 js/fog.js             the fog-of-war canvas layer
 js/app.js             CSV parsing, data loading, map, UI
 data/missions.json    fallback snapshot
 data/regions.geojson  13 Saudi ADM1 regions
-tools/                snapshot builder + passcode setter
+data/clusters.json    fallback copy of the cluster offices
+tools/                snapshot builder
 ```
 
 ## Notes on the data

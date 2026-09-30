@@ -669,6 +669,7 @@ select.in{
 .loc-set .loc-now{color:var(--active);border-color:#22ff8866;background:#0b1d16}
 .loc-btn{flex:none;cursor:pointer;padding:10px 14px;font-size:13px}
 .loc-msg{margin:7px 0 0;font-size:12px;line-height:1.4}
+#cs-loc-msg{margin:4px 16px 8px}
 .loc-ok{color:var(--active)}
 .loc-warn{color:var(--visited)}
 .loc-err{color:#ff9d9d}
@@ -716,7 +717,12 @@ body.low-power .urg-expired .pin-ring{animation:none}
   flex:none; font-family:ui-monospace,Menlo,monospace; font-size:10.5px;
   color:var(--contact); padding-top:1px;
 }
-.log-list span{font-size:12.5px;color:var(--ink-dim);line-height:1.45;word-break:break-word}
+.log-list span{font-size:12.5px;color:var(--ink-dim);line-height:1.45;word-break:break-word;white-space:pre-line}
+.log-by{
+  display:inline-block; margin-inline-end:6px; padding:1px 7px; border-radius:20px;
+  font-style:normal; font-size:10.5px; font-weight:700; white-space:nowrap;
+  background:#12283d; border:1px solid #24405c; color:#9ad4ff;
+}
 
 /* product chips can carry a code under the name */
 .chip em{
@@ -1184,7 +1190,7 @@ body.low-power .urg-expired .pin-ring{animation:none}
   background:#2f8bff; border:2.5px solid #fff;
   box-shadow:0 0 0 1px #00000059,0 0 14px #2f8bffcc;
 }
-.me-pulse{background:#2f8bff59;animation:mePulse 2.1s ease-out infinite}
+.me-pulse{background:#2f8bff59;animation:mePulse 2.1s ease-out infinite;pointer-events:none}
 @keyframes mePulse{
   0%{transform:scale(1);opacity:.75}
   70%{transform:scale(3.6);opacity:0}
@@ -1223,3 +1229,59 @@ body.low-power .pin.pin-action .pin-halo{animation:none}
 :root[data-preset="saudi"] .qv-gate{background:#f4f7fb;border-color:#cdd8e6}
 :root[data-preset="saudi"] .qv-loc.loc-err{color:#b3261e}
 :root[data-preset="saudi"] .qv-loc.loc-ok{color:#006C35}
+
+
+/* ═══ CLUSTER OFFICES ══════════════════════════════════════ */
+.cs-wrap{background:none!important;border:0!important}
+.cs-mark{display:block;filter:drop-shadow(0 1px 4px #000a)}
+.cs-wrap:hover .cs-mark{filter:drop-shadow(0 0 7px #8f75ffcc) drop-shadow(0 1px 4px #000a)}
+.cs-toggle.on{border-color:#8f75ff;background:#151232;color:#ded6ff}
+.cs-head{--g:rgba(109,74,255,.3)}
+.cs-head .p-badge{background:#6d4aff24;border-color:#8f75ff66;color:#cfc4ff}
+.cs-progress{padding:12px 16px 4px;border-bottom:1px solid #0f1d2c}
+.cs-progress .lb-bar{margin:9px 0 10px}
+.cs-pct{font-size:12.5px;color:var(--ink-dim)}
+.cs-pct b{font-family:var(--font-hud);font-size:17px;color:var(--ink)}
+.cs-pct span{color:var(--ink-mute)}
+.cs-dot{
+  display:inline-block; width:8px; height:8px; border-radius:50%;
+  margin-inline-end:8px; background:var(--c,#5b6b82);
+}
+.cs-dot.stage-0{--c:#5b6b82}.cs-dot.stage-1{--c:#38bdf8}.cs-dot.stage-2{--c:#fbbf24}
+.cs-dot.stage-3{--c:#86efac}.cs-dot.stage-4{--c:#22ff88}
+:root[data-preset="saudi"] .cs-toggle.on{background:#f1eeff;border-color:#8f75ff;color:#3b2a9c}
+:root[data-preset="saudi"] .cs-head .p-badge{color:#4a35c4}
+
+/* ═══ SIGNED-IN USER ═══════════════════════════════════════ */
+.user-box{
+  display:flex; align-items:center; gap:10px; margin-bottom:12px; padding:9px 12px;
+  border-radius:12px; border:1px solid var(--line); background:#0a1420;
+}
+.ub-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.ub-who b{font-size:13.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ub-who i{font-style:normal;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute)}
+.ub-switch{
+  flex:none; cursor:pointer; padding:6px 10px; border-radius:20px; font-size:11.5px;
+  border:1px solid var(--line); background:#0f1d2c; color:var(--ink-dim);
+}
+.ub-switch:hover{border-color:var(--ink-mute);color:var(--ink)}
+:root[data-preset="desert"] .user-box{background:#2a2114;border-color:#4a3c26}
+:root[data-preset="desert"] .ub-switch{background:#241d12;border-color:#4a3c26}
+:root[data-preset="desert"] .log-by{background:#33280f;border-color:#5a4722;color:#f0cd7a}
+:root[data-preset="saudi"] .user-box,
+:root[data-preset="saudi"] .ub-switch{background:#f4f7fb;border-color:#cdd8e6}
+:root[data-preset="saudi"] .log-by{background:#e7f3ec;border-color:#b9d8c6;color:#006C35}
+.gate-btn:disabled{opacity:.6;cursor:wait}
+
+/* the "while you were away" replay: a kicker line, and tappable to skip */
+.celebrate b{display:flex;flex-direction:column;gap:2px;font-weight:800}
+.celebrate small{
+  font-family:var(--font); font-size:10.5px; font-weight:600; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--gold);
+}
+.celebrate-tap{pointer-events:auto;cursor:pointer}
+/* at country zoom the towns are a few pixels apart; smaller marks overlap less */
+.z-far .cs-mark{transform:scale(.8)}
+.z-far .wh-mark{transform:scale(.88)}
+.celebrate span{max-width:min(370px,calc(100vw - 28px))}
+.celebrate-tap span{font-size:15.5px;padding:12px 18px}

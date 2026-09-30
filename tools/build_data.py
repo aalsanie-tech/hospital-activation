@@ -116,6 +116,7 @@ for i, r in enumerate(rows):
         continue
     missions.append({
         'id': 'h%03d' % (i + 1),
+        'hid': g('Hospital ID'),
         'name': g('Hospital Name'),
         'city': g('City'),
         'cluster': cl,

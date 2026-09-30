@@ -23,13 +23,13 @@ window.TM_CONFIG = {
   SNAPSHOT_URL: 'data/missions.json',
   REGIONS_URL: 'data/regions.geojson',
 
-  /* ── Access gate ───────────────────────────────────────────────────────
-     SHA-256 of the access code. Default code: territory2030
-     Change it with:  python3 tools/set_passcode.py "your new code"
-     NOTE: a deterrent, not real security — the data is downloaded by the
-     browser, so anyone determined can read it. Don't treat the URL as
-     confidential.                                                        */
-  PASSCODE_SHA256: 'a675f3f1a7c1fd64404115b8dfdfa0595a553cfcd7a0422270ac34ca397ef53d',
+  /* ── Sign-in ───────────────────────────────────────────────────────────────
+     Each person has their own code, checked by the Apps Script
+     (POST {login: true, passcode}). Nothing about the codes lives in this
+     repository. The phone keeps the name the script returns — never the
+     code — and "Switch user" in the drawer forgets it.
+     NOTE: this is attribution, not security. The data is downloaded by the
+     browser, so anyone with the link can read it.                        */
   GATE_ENABLED: true,
 
   /* ── Agent edit mode (writes back to the sheet) ────────────────────────
@@ -65,6 +65,10 @@ window.TM_CONFIG = {
      by several hospitals — get the wider radius instead. */
   VISIT_RADIUS_KM: 3,
   VISIT_RADIUS_APPROX_KM: 15,
+
+  /* Health-cluster offices (?action=clusters) and who works there */
+  CLUSTERS_FALLBACK_URL: 'data/clusters.json',
+  CLUSTER_ROLES: ['Purchasing', 'Planning', 'أمين العهدة', 'CSSD Coordinator', 'Supply Chain', 'Other'],
 
   /* Contacts tab, read straight from the sheet (the script has no
      ?action=contacts). New contacts are written through add_contact. */
