@@ -279,6 +279,51 @@ function onLand(lat, lng) {
   return false;
 }
 
+/* "On land" for a marker means more than its centre: a dot centred on the
+   coastline is still half in the sea. inlandAt() asks that a ring of
+   `margin` pixels round the point is on land too.
+
+   pullInland() moves a point that fails that test to the nearest one that
+   passes. Two cases, deliberately different:
+   - the centre is on land but too near the edge: only a small step is
+     allowed (twice the margin). This is what keeps a hospital on a small
+     island on its island instead of hopping to the mainland.
+   - the centre is off the map altogether — the sheet's coordinate is just
+     outside the simplified coastline or border: search further, and settle
+     for centre-on-land if nothing roomier is near. */
+function inlandAt(P, z, margin) {
+  var map = state.map, ll = map.unproject(P, z);
+  if (!onLand(ll.lat, ll.lng)) return false;
+  if (!margin) return true;
+  for (var k = 0; k < 8; k++) {
+    var a = k * Math.PI / 4;
+    var q = map.unproject(L.point(P.x + Math.cos(a) * margin, P.y + Math.sin(a) * margin), z);
+    if (!onLand(q.lat, q.lng)) return false;
+  }
+  return true;
+}
+
+function pullInland(P, z, margin, maxPx) {
+  if (inlandAt(P, z, margin)) return P;
+  var centreOk = inlandAt(P, z, 0), reach = centreOk ? margin * 2 : maxPx, fallback = null;
+  /* fine steps near the point, coarser further out: a coordinate that is
+     tens of kilometres off the map is hundreds of pixels away at full zoom */
+  for (var rad = 2; rad <= reach; rad += Math.max(2, rad * 0.06)) {
+    var n = Math.min(72, Math.max(8, Math.round((2 * Math.PI * rad) / 4)));
+    for (var s = 0; s < n; s++) {
+      var a = s * 2 * Math.PI / n;
+      var Q = L.point(P.x + Math.cos(a) * rad, P.y + Math.sin(a) * rad);
+      if (inlandAt(Q, z, margin)) return Q;
+      if (!centreOk && !fallback && inlandAt(Q, z, 0)) fallback = Q;
+    }
+    /* centre-on-land found: look only a little further for a roomier spot */
+    if (fallback && rad > P.distanceTo(fallback) + margin * 2) break;
+  }
+  return fallback || P;
+}
+
+var PULL_MAX_PX = 2600;
+
 function pinScale(z) { return z <= 5 ? 0.72 : (z < 8 ? 0.88 : 1); }
 
 /* Zoomed out, hospitals in the same city fan apart; zoomed in, they slide
@@ -330,6 +375,7 @@ function spreadPins() {
   if (!cache) {
     cache = state.spreadCache[key] = {};
     var sep = 22 * pinScale(z) * 0.95;
+    var room = Math.max(6, 8 * pinScale(z));    // the dot and a little of its glow
     var GOLDEN = Math.PI * (3 - Math.sqrt(5));
     var t = Math.max(0, Math.min(1, (z - FAN_UNTIL) / (TRUE_FROM - FAN_UNTIL)));
 
@@ -342,8 +388,7 @@ function spreadPins() {
         for (var s = 0; s < n; s++) {
           var ang = order * GOLDEN + s * (2 * Math.PI / n);
           var P = L.point(C.x + Math.cos(ang) * rad, C.y + Math.sin(ang) * rad);
-          var ll = map.unproject(P, z);
-          if (!onLand(ll.lat, ll.lng)) continue;
+          if (!inlandAt(P, z, room)) continue;
           var gap = Infinity;
           for (var q = 0; q < placed.length; q++) {
             var d = P.distanceTo(placed[q]);
@@ -358,8 +403,11 @@ function spreadPins() {
 
     state.stacks.forEach(function (stack) {
       var members = stack.members;
-      if (members.length === 1) {                       // lone: exact, always
-        cache[members[0].id] = [members[0].lat, members[0].lng];
+      if (members.length === 1) {                       // lone: its own coordinate,
+        var lone = members[0];                          // nudged only if that is off the map
+        var LP = pullInland(map.project([lone.lat, lone.lng], z), z, room, PULL_MAX_PX);
+        var lll = map.unproject(LP, z);
+        cache[lone.id] = [lll.lat, lll.lng];
         return;
       }
       var A = map.project(stack.centre, z), fanned = [], final = [];
@@ -382,6 +430,8 @@ function spreadPins() {
           }
           if (clash) P = search(P, i, 3, final) || P;
         }
+        /* 4 — a real coordinate can sit just outside the simplified coastline */
+        P = pullInland(P, z, room, PULL_MAX_PX);
         final.push(P);
         var ll = map.unproject(P, z);
         cache[m.id] = [ll.lat, ll.lng];
@@ -844,6 +894,8 @@ function initMap() {
       });
       updateFog(stats(state.missions));
     }
+    renderWarehouses();
+    renderClusterSites();
   });
   L.control.attribution({ position: 'bottomleft', prefix: false })
     .addAttribution('Leaflet · boundaries: geoBoundaries ADM1').addTo(map);
@@ -2800,8 +2852,12 @@ function renderWarehouses() {
   state.supplyLayers = [];
   if (!state.showSupply || !(state.warehouses || []).length) return;
 
+  var z = map.getZoom();
   state.warehouses.forEach(function (w) {
-    var mk = L.marker([w.lat, w.lng], {
+    /* drawn at its own point unless that point is off the map's coastline */
+    var P = pullInland(map.project([w.lat, w.lng], z), z, 10, PULL_MAX_PX);
+    w.spot = P;
+    var mk = L.marker(map.unproject(P, z), {
       icon: warehouseIcon(), title: w.name, zIndexOffset: 500, riseOnHover: true
     }).addTo(map);
     mk.on('click', function () { selectWarehouse(w); });
@@ -3036,17 +3092,35 @@ function clusterMark(size) {
 /* A cluster office is entered at its city's centre — the very point the
    city's hospitals fan out from, often the local depot's point too, and for
    Jeddah the other Jeddah cluster's. A marker dead on that point hides, or
-   hides under, whatever else is there. So an office is always drawn a
-   marker's width off its point, and offices sharing a point each take a
-   different corner. */
-var CS_SLOTS = [[30, 30], [30, -4], [-4, 30], [-4, -4]];
+   hides under, whatever else is there, so an office is drawn a marker's
+   width away from it.
 
-function clusterSlots() {
-  var near = function (a, b) { return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lng - b.lng) < 0.01; };
-  var sites = state.clusterSites || [];
-  return sites.map(function (c, i) {
-    var before = sites.slice(0, i).filter(function (o) { return near(o, c); }).length;
-    return CS_SLOTS[before % CS_SLOTS.length];
+   Where, exactly, is worked out per zoom: the first spot round the point
+   that is comfortably on land and clear of the depots and of the offices
+   already placed. A fixed offset put Jeddah's and Jazan's offices in the
+   Red Sea, because "20 pixels west" of a coastal city is water. */
+var CS_ANGLES = [225, 315, 135, 45, 270, 180, 0, 90];      // screen degrees: up-left first
+
+function clusterSpots(z) {
+  var map = state.map, room = 11, clear = 22;
+  var taken = state.showSupply
+    ? (state.warehouses || []).map(function (w) { return w.spot || map.project([w.lat, w.lng], z); })
+    : [];
+  return (state.clusterSites || []).map(function (c) {
+    var T = map.project([c.lat, c.lng], z), pick = null;
+    [20, 30, 42, 56].some(function (rad) {
+      return CS_ANGLES.some(function (deg) {
+        var a = deg * Math.PI / 180;
+        var Q = L.point(T.x + Math.cos(a) * rad, T.y + Math.sin(a) * rad);
+        if (!inlandAt(Q, z, room)) return false;
+        if (taken.some(function (o) { return o.distanceTo(Q) < clear; })) return false;
+        pick = Q;
+        return true;
+      });
+    });
+    if (!pick) pick = pullInland(T, z, room, PULL_MAX_PX);
+    taken.push(pick);
+    return pick;
   });
 }
 
@@ -3055,10 +3129,10 @@ function renderClusterSites() {
   (state.clusterLayers || []).forEach(function (l) { map.removeLayer(l); });
   state.clusterLayers = [];
   if (!state.showClusters || !(state.clusterSites || []).length) return;
-  var slots = clusterSlots();
+  var z = map.getZoom(), spots = clusterSpots(z);
   state.clusterSites.forEach(function (c, i) {
-    var mk = L.marker([c.lat, c.lng], {
-      icon: L.divIcon({ className: 'cs-wrap', html: clusterMark(26), iconSize: [26, 26], iconAnchor: slots[i] }),
+    var mk = L.marker(map.unproject(spots[i], z), {
+      icon: L.divIcon({ className: 'cs-wrap', html: clusterMark(26), iconSize: [26, 26], iconAnchor: [13, 13] }),
       /* under the depots (500) and the red action pins (600): an office is
          the larger mark, so it is the one that can afford to be overlapped */
       title: c.name, zIndexOffset: 450, riseOnHover: true

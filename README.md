@@ -421,6 +421,21 @@ Tune with `STACK_KM`, `FAN_UNTIL` and `TRUE_FROM` in `js/app.js`.
 still carry a city-centre coordinate shared by several hospitals, and those
 cannot converge on a real location until the sheet has one.
 
+### Nothing is drawn in the sea
+
+Every marker — hospital, depot, cluster office — is placed per zoom level so
+that its centre **and** a ring a few pixels round it fall inside a region
+polygon (`inlandAt()` / `pullInland()` in `js/app.js`). A point that is on
+land but hugging the coast moves a few pixels inland; a point the sheet puts
+outside the simplified coastline or border is drawn at the nearest spot
+inside it. A hospital on a small island is left on its island rather than
+moved to the mainland. Cluster offices, which are drawn a marker's width
+off their city-centre point, choose that spot the same way instead of using
+a fixed offset.
+
+This is display only: the sheet's coordinates, Directions links and the
+Visited distance check all use the real values.
+
 ## Deploying to GitHub Pages
 
 ```bash
