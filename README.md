@@ -342,7 +342,7 @@ TM.postUpdate({ hospital_name: '__nope__' })   // → {success:false, error:'Hos
 `?action=clusters` returns each health cluster's office — `name`, `key`,
 `city`, `lat`, `lng`. `key` is the same string the hospitals carry in their
 Cluster column, which is how an office is tied to its hospitals. Offices are
-drawn as a violet building above the fog, with their own toggle under the
+drawn as the blue health-cluster emblem above the fog, with their own toggle under the
 Nupco one. Because an office is entered at its city's centre — the point the
 city's hospitals fan out from, and often the depot's point — it is always
 drawn one marker's width off its coordinate, and offices sharing a point

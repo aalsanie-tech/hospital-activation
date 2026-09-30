@@ -1234,10 +1234,10 @@ body.low-power .pin.pin-action .pin-halo{animation:none}
 /* ═══ CLUSTER OFFICES ══════════════════════════════════════ */
 .cs-wrap{background:none!important;border:0!important}
 .cs-mark{display:block;filter:drop-shadow(0 1px 4px #000a)}
-.cs-wrap:hover .cs-mark{filter:drop-shadow(0 0 7px #8f75ffcc) drop-shadow(0 1px 4px #000a)}
-.cs-toggle.on{border-color:#8f75ff;background:#151232;color:#ded6ff}
-.cs-head{--g:rgba(109,74,255,.3)}
-.cs-head .p-badge{background:#6d4aff24;border-color:#8f75ff66;color:#cfc4ff}
+.cs-wrap:hover .cs-mark{filter:drop-shadow(0 0 7px #63b9eccc) drop-shadow(0 1px 4px #000a)}
+.cs-toggle.on{border-color:#4a9fdc;background:#0d1f30;color:#d3ebff}
+.cs-head{--g:rgba(74,159,220,.3)}
+.cs-head .p-badge{background:#4a9fdc24;border-color:#4a9fdc66;color:#bfe2ff}
 .cs-progress{padding:12px 16px 4px;border-bottom:1px solid #0f1d2c}
 .cs-progress .lb-bar{margin:9px 0 10px}
 .cs-pct{font-size:12.5px;color:var(--ink-dim)}
@@ -1249,8 +1249,8 @@ body.low-power .pin.pin-action .pin-halo{animation:none}
 }
 .cs-dot.stage-0{--c:#5b6b82}.cs-dot.stage-1{--c:#38bdf8}.cs-dot.stage-2{--c:#fbbf24}
 .cs-dot.stage-3{--c:#86efac}.cs-dot.stage-4{--c:#22ff88}
-:root[data-preset="saudi"] .cs-toggle.on{background:#f1eeff;border-color:#8f75ff;color:#3b2a9c}
-:root[data-preset="saudi"] .cs-head .p-badge{color:#4a35c4}
+:root[data-preset="saudi"] .cs-toggle.on{background:#eaf5fd;border-color:#4a9fdc;color:#1d5f96}
+:root[data-preset="saudi"] .cs-head .p-badge{color:#1d5f96}
 
 /* ═══ SIGNED-IN USER ═══════════════════════════════════════ */
 .user-box{

@@ -3006,13 +3006,29 @@ function clusterHospitals(c) {
   });
 }
 
+/* The Saudi health-cluster emblem: five drop-shaped petals in a star round
+   a ring, the Kingdom inside it. Every cluster shares the emblem and only
+   the name under it changes, so one mark serves all thirteen. Each petal is
+   one drop with a smaller drop cut out of it and a bead inside that, which
+   is as much of the original's interlacing as survives at marker size. */
+var CS_UID = 0;
+
 function clusterMark(size) {
-  return '<svg class="cs-mark" viewBox="0 0 28 28" width="' + size + '" height="' + size +
+  var id = 'csg' + (++CS_UID);
+  var petal = '<path d="M24 1.5C27.5 6.5 30.5 9.5 30.5 13A6.5 6.5 0 0 1 17.5 13C17.5 9.5 20.5 6.5 24 1.5Z" fill="url(#' + id + ')"/>' +
+              '<path d="M24 6.6C25.9 9.4 27.6 11.2 27.6 13.3A3.6 3.6 0 0 1 20.4 13.3C20.4 11.2 22.1 9.4 24 6.6Z" fill="#f4faff"/>' +
+              '<circle cx="24" cy="13.6" r="1.7" fill="url(#' + id + ')"/>';
+  var petals = [0, 72, 144, 216, 288].map(function (deg) {
+    return '<g transform="rotate(' + deg + ' 24 26)">' + petal + '</g>';
+  }).join('');
+  return '<svg class="cs-mark" viewBox="0 0 48 48" width="' + size + '" height="' + size +
     '" aria-hidden="true">' +
-      '<rect x="1.5" y="1.5" width="25" height="25" rx="7" fill="#6d4aff" stroke="#d6caff" stroke-width="1.5"/>' +
-      '<path fill="#fff" d="M8 21.5V8.2c0-.7.5-1.2 1.2-1.2h6.1c.7 0 1.2.5 1.2 1.2v3.3h2.3c.7 0 1.2.5 1.2 1.2v8.8z"/>' +
-      '<path fill="#6d4aff" d="M10.3 9.4h1.7v1.7h-1.7zm2.8 0h1.7v1.7h-1.7zm-2.8 2.9h1.7V14h-1.7zm2.8 0h1.7V14h-1.7z' +
-        'm-2.8 2.9h1.7v1.7h-1.7zm2.8 0h1.7v1.7h-1.7zm3.7-1.3h1.2v1.3h-1.2zm0 2.3h1.2v1.3h-1.2zm-5.1 1.9h1.9v3.4h-1.9z"/>' +
+      '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="#63b9ec"/><stop offset="1" stop-color="#2b7fc4"/>' +
+      '</linearGradient></defs>' +
+      petals +
+      '<circle cx="24" cy="26" r="6.1" fill="#f7fbff" stroke="#2f86cb" stroke-width="1.5"/>' +
+      '<path d="M20.2 23.9l2.5-.9 2.4 1.5 1.5 1.4 1.5.8-.9 1.5-1.9.4-1 1.1-1.5-.4-1.1-2.1z" fill="#57b79a"/>' +
     '</svg>';
 }
 
@@ -3022,7 +3038,7 @@ function clusterMark(size) {
    hides under, whatever else is there. So an office is always drawn a
    marker's width off its point, and offices sharing a point each take a
    different corner. */
-var CS_SLOTS = [[26, 26], [26, -4], [-4, 26], [-4, -4]];
+var CS_SLOTS = [[30, 30], [30, -4], [-4, 30], [-4, -4]];
 
 function clusterSlots() {
   var near = function (a, b) { return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lng - b.lng) < 0.01; };
@@ -3041,7 +3057,7 @@ function renderClusterSites() {
   var slots = clusterSlots();
   state.clusterSites.forEach(function (c, i) {
     var mk = L.marker([c.lat, c.lng], {
-      icon: L.divIcon({ className: 'cs-wrap', html: clusterMark(22), iconSize: [22, 22], iconAnchor: slots[i] }),
+      icon: L.divIcon({ className: 'cs-wrap', html: clusterMark(26), iconSize: [26, 26], iconAnchor: slots[i] }),
       /* under the depots (500) and the red action pins (600): an office is
          the larger mark, so it is the one that can afford to be overlapped */
       title: c.name, zIndexOffset: 450, riseOnHover: true
