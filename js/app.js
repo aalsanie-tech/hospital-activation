@@ -1538,7 +1538,8 @@ function parseVisitLog(log) {
 }
 
 function visitLogHtml(log) {
-  var entries = parseVisitLog(log);
+  /* the script appends, so the cell runs oldest to newest; show newest first */
+  var entries = parseVisitLog(log).reverse();
   if (!entries.length) return '';
   return '<div class="log-head">' + esc(t('fVisitLog')) +
     ' <span>' + entries.length + ' ' + esc(t('entries')) + '</span></div>' +
@@ -2268,8 +2269,8 @@ function saveQuickVisit(m, form) {
       }
       var today = todayISO();
       m.lastVisit = today;
-      m.visitLog = '[' + today + (state.user ? ' · ' + state.user.name : '') + '] ' + note +
-                   (m.visitLog ? '\n' + m.visitLog : '');
+      m.visitLog = (m.visitLog ? m.visitLog + '\n' : '') +
+                   '[' + today + (state.user ? ' · ' + shortAgent(state.user.name) : '') + '] ' + note;
       var moved = false;
       if (res.stage) {
         var shown = stageOf(m);
@@ -3105,13 +3106,24 @@ function selectClusterSite(c) {
   var rows = !contacts
     ? '<p class="ct-empty">' + esc(t('loadingLbl')) + '</p>'
     : (contacts.length
-        ? contacts.map(function (k) {
-            return '<div class="ct"><span class="ct-role">' + esc(k.role || t('contact')) + '</span>' +
+        ? contacts.map(function (k, i) {
+            var arming = state.siteContactDelete && state.siteContactDelete.site === c.name &&
+                         state.siteContactDelete.index === i;
+            return '<div class="ct' + (arming ? ' ct-arming' : '') + '"><span class="ct-role">' + esc(k.role || t('contact')) + '</span>' +
               '<span class="ct-name" dir="auto">' + esc(k.name || t('none')) + '</span>' +
               (k.phone
                 ? '<a class="ct-tel" href="' + esc(telHref(k.phone)) + '">' + esc(fmtPhone(k.phone)) + '</a>'
                 : '<span class="ct-tel ct-muted">' + esc(t('none')) + '</span>') +
-              (k.notes ? '<span class="ct-notes" dir="auto">' + esc(k.notes) + '</span>' : '') + '</div>';
+              (k.notes ? '<span class="ct-notes" dir="auto">' + esc(k.notes) + '</span>' : '') +
+              (editEnabled()
+                ? (arming
+                    ? '<span class="ct-confirm">' + esc(t('confirmDelete')) +
+                        '<button type="button" class="ct-no" data-i="' + i + '">' + esc(t('cancel')) + '</button>' +
+                        '<button type="button" class="ct-yes" data-i="' + i + '">' + esc(t('deleteLbl')) + '</button>' +
+                      '</span>'
+                    : '<button type="button" class="ct-del" data-i="' + i + '" aria-label="' +
+                      esc(t('deleteLbl')) + '">✕</button>')
+                : '') + '</div>';
           }).join('')
         : '<p class="ct-empty">' + esc(t('noContacts')) + '</p>');
 
@@ -3151,6 +3163,18 @@ function selectClusterSite(c) {
   });
   var add = $('#cs-contact-add');
   if (add) add.addEventListener('click', function () { openSiteContactForm(c); });
+  $$('#panel-body .ct-del').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.siteContactDelete = { site: c.name, index: +b.dataset.i };
+      selectClusterSite(c);
+    });
+  });
+  $$('#panel-body .ct-no').forEach(function (b) {
+    b.addEventListener('click', function () { state.siteContactDelete = null; selectClusterSite(c); });
+  });
+  $$('#panel-body .ct-yes').forEach(function (b) {
+    b.addEventListener('click', function () { deleteSiteContact(c, contacts[+b.dataset.i]); });
+  });
   var loc = $('#cs-loc-btn');
   if (loc) loc.addEventListener('click', function () { setClusterLocation(c); });
   var show = $('#cs-show');
@@ -3174,6 +3198,30 @@ function selectClusterSite(c) {
       if (state.selectedSite === c.name && !$('#panel-body form')) selectClusterSite(c);
     });
   }
+}
+
+function deleteSiteContact(c, contact) {
+  state.siteContactDelete = null;
+  if (!contact) return;
+  toast(t('saving'));
+  postUpdate({
+    delete_contact: true, site_name: c.name,
+    contact_role: contact.role, contact_name: contact.name
+  }).then(function (res) {
+    if (!res || res.success !== true) throw scriptError(res, 'the script rejected the delete');
+    return fetchSiteContacts(c).catch(function () {
+      state.siteContacts[c.name] = (state.siteContacts[c.name] || []).filter(function (x) {
+        return !(x.name === contact.name && x.role === contact.role);
+      });
+    });
+  }).then(function () {
+    toast('✓ ' + t('contactDeleted'));
+    if (state.selectedSite === c.name) selectClusterSite(c);
+  }).catch(function (e) {
+    toast(t('saveFailed') + ' — ' + e.message);
+    console.error('[TM] delete cluster contact failed', e);
+    if (state.selectedSite === c.name) selectClusterSite(c);
+  });
 }
 
 function openSiteContactForm(c) {

@@ -274,7 +274,8 @@ size, drawn above the fog even when the hospital is Locked.
 one-line note, then Save posts
 `{hospital_name, quick_visit: true, visit_note}`. The script stamps the date
 and appends it to the Visit Log; the panel lists every entry, newest first,
-each on its own dated line.
+each on its own dated line (the script appends, so the app reverses the cell
+to put the newest on top).
 
 **Visited only works at the hospital.** The form reads the phone's GPS and
 keeps Save disabled unless the agent is within `VISIT_RADIUS_KM` (3 km) of
@@ -351,7 +352,8 @@ take different corners.
 The panel shows the cluster's name, how far its hospitals have come, a
 collapsible **Contacts (n)** read from `?action=contacts&site=<name>`, and
 **+ Add contact**, which posts `add_contact` with `site_name` = the cluster
-name (roles in `CLUSTER_ROLES`). **Set to my location** posts
+name (roles in `CLUSTER_ROLES`); ✕ removes one with `delete_contact` and the
+same `site_name`. **Set to my location** posts
 `{cluster_name, latitude, longitude}` with the same guards as a hospital:
 a weak fix is refused and a far one needs a second tap.
 `data/clusters.json` is the offline copy.
