@@ -447,10 +447,6 @@ function stageOf(m) {
     for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) & 0x7fffffff;
     return [0, 0, 1, 1, 2, 2, 3, 3, 4, 4][h % 10];   /* averages 2.0 → ~50% */
   }
-  /* Anyone on the Contacts tab means the hospital has been contacted. The
-     script only looks at the CSSD manager cell, so the sheet can still say
-     Locked for these — the map goes by the contacts. */
-  if (m.stage === 0 && ((state.contacts || {})[m.name] || []).length) return 1;
   return m.stage;
 }
 
@@ -1717,7 +1713,9 @@ function frameTerritory(tries) {
   map.setMinZoom(CFG.MIN_ZOOM);
   map.fitBounds(b, { animate: false, paddingTopLeft: [18, 96], paddingBottomRight: [18, 80] });
   var z = map.getZoom();
-  if (z >= CFG.MIN_ZOOM && z <= CFG.MAX_ZOOM) map.setMinZoom(Math.max(3, z - 2));
+  /* one half step of breathing room past the full-country view; further
+     out the map is only a small shape in a lot of sea */
+  if (z >= CFG.MIN_ZOOM && z <= CFG.MAX_ZOOM) map.setMinZoom(Math.max(3, z - 0.5));
 }
 
 /* The four badges laid out before anyone has earned them — half the pull

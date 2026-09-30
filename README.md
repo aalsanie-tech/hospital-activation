@@ -130,12 +130,8 @@ has Last Visit Date or Visit Log and never sends `last_visit` / `visit_log`;
 saving contact details moves a hospital to Contact and no further. Only
 **✓ Visited** records a visit.
 
-**Contacts count as contact.** The script derives Contact from the CSSD
-Manager cell alone, so a Locked hospital whose only people are on the
-Contacts tab stays `0-Locked` in the sheet. The map shows it as Contact
-anyway (`stageOf()` in `js/app.js`). Until the script applies the same rule,
-the sheet's Stage column and the Stage History will lag the map for those
-hospitals.
+**Contact means a CSSD manager.** The CSSD Manager cell is what separates
+Locked from Contact; people on the Contacts tab alone do not move the stage.
 
 The `—` on each Y/N toggle means "leave the sheet's value alone", so those
 keys are omitted unless the agent picked Y or N. Shortage Items is the
