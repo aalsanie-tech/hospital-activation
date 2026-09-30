@@ -60,6 +60,12 @@ window.TM_CONFIG = {
      (it is blank on every row today). */
   PUSH_TARGET: 12,
 
+  /* The Visited button only works this close to the hospital's pin (km).
+     Pins that are clearly a town centre — rounded coordinates, or shared
+     by several hospitals — get the wider radius instead. */
+  VISIT_RADIUS_KM: 3,
+  VISIT_RADIUS_APPROX_KM: 15,
+
   /* Contacts tab, read straight from the sheet (the script has no
      ?action=contacts). New contacts are written through add_contact. */
   CONTACTS_CSV_URL: 'https://docs.google.com/spreadsheets/d/1HBRcW_MYKdNy-YOjAbpMvYtx7wthTbPTAPlhV4uCKE8/gviz/tq?tqx=out:csv&headers=1&sheet=Contacts',

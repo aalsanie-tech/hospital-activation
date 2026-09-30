@@ -108,8 +108,7 @@ Script cannot answer one). `hospital_name` must match column A exactly:
 
 ```json
 { "hospital_name": "مستشفى الملك فيصل ( الششه)",
-  "cssd_manager": "…", "phone": "…", "last_visit": "2026-09-09",
-  "visit_log": "…", "push_adopted": "3", "informed": "Y",
+  "cssd_manager": "…", "phone": "…", "push_adopted": "3", "informed": "Y",
   "has_incubator": "Y", "incubator_serial": "30", "dosing_system": "N",
   "shortage_items": "BT224, GUL Ultra Pouch", "action_required": "None",
   "feedback": "", "next_step": "…" }
@@ -123,6 +122,20 @@ sends the visit facts and reads the stage back. That stage is applied to the
 map immediately — the pin re-colours, the legend and conquest bar update,
 and the promoted pin pulses once so the change is visible. The stage is also
 shown in the save confirmation.
+
+**An update is not a visit.** The script turns any row with a Last Visit
+Date into `2-Visited`, and the Update form used to send today's date with
+every save — so fixing a phone number logged a visit. The form no longer
+has Last Visit Date or Visit Log and never sends `last_visit` / `visit_log`;
+saving contact details moves a hospital to Contact and no further. Only
+**✓ Visited** records a visit.
+
+**Contacts count as contact.** The script derives Contact from the CSSD
+Manager cell alone, so a Locked hospital whose only people are on the
+Contacts tab stays `0-Locked` in the sheet. The map shows it as Contact
+anyway (`stageOf()` in `js/app.js`). Until the script applies the same rule,
+the sheet's Stage column and the Stage History will lag the map for those
+hospitals.
 
 The `—` on each Y/N toggle means "leave the sheet's value alone", so those
 keys are omitted unless the agent picked Y or N. Shortage Items is the
@@ -232,14 +245,24 @@ top and only hide pins. Chip counts update against the other filter, so
 
 **Urgency rings** come from `Visit Status`: `Aging` draws a steady orange
 ring, `Expiring` or `Expired` a pulsing red one. Any `Action Required`
-other than `None`/blank adds a small red flag to the marker at every zoom.
+other than `None`/blank turns the hospital's own pin red — same dot, same
+size, drawn above the fog even when the hospital is Locked.
 
 **✓ Visited** on the hospital panel logs a visit in one step: a mandatory
 one-line note, then Save posts
 `{hospital_name, quick_visit: true, visit_note}`. The script stamps the date
 and appends it to the Visit Log; the panel lists every entry, newest first,
-each on its own dated line. The full Update form's `visit_log` is appended
-by the script the same way — it never overwrites the history.
+each on its own dated line.
+
+**Visited only works at the hospital.** The form reads the phone's GPS and
+keeps Save disabled unless the agent is within `VISIT_RADIUS_KM` (3 km) of
+the pin. Pins that are plainly a town centre — coordinates rounded to two
+decimals or fewer, or shared with another hospital — use
+`VISIT_RADIUS_APPROX_KM` (15 km) instead, because an agent in the right car
+park can be kilometres from those. The measured distance is appended to the
+note (`… [GPS 0.4 km]`) so visits can be audited in the sheet. This is
+enforced in the app, not the script: it stops mis-taps and shortcuts, not
+someone posting to the endpoint directly.
 
 ### Setting a hospital's location from the field
 

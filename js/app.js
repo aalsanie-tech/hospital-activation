@@ -447,6 +447,10 @@ function stageOf(m) {
     for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) & 0x7fffffff;
     return [0, 0, 1, 1, 2, 2, 3, 3, 4, 4][h % 10];   /* averages 2.0 → ~50% */
   }
+  /* Anyone on the Contacts tab means the hospital has been contacted. The
+     script only looks at the CSSD manager cell, so the sheet can still say
+     Locked for these — the map goes by the contacts. */
+  if (m.stage === 0 && ((state.contacts || {})[m.name] || []).length) return 1;
   return m.stage;
 }
 
@@ -703,6 +707,10 @@ function initMap() {
     minZoom: CFG.MIN_ZOOM, maxZoom: CFG.MAX_ZOOM,
     zoomControl: false, attributionControl: false,
     tap: true, touchZoom: true, bounceAtZoomLimits: false,
+    /* half steps: a pinch settles on the nearest .5 instead of jumping a
+       whole level, and +/- move half as far. No tiles here, so fractional
+       zoom costs nothing. */
+    zoomSnap: 0.5, zoomDelta: 0.5,
     preferCanvas: false, worldCopyJump: false
   });
   map.createPane('regions').style.zIndex = 300;      // terrain
@@ -862,17 +870,21 @@ function pinIcon(m, st) {
   var star = stage === 4 ? '<span class="pin-star">✦</span>' : '';
   var urg = urgencyOf(m);
   var cls = String(m.cls || '').trim().toLowerCase();
+  /* Action Required takes the pin over: the same dot as every other
+     hospital, in red — even on a locked one, which would otherwise be a
+     dim padlock under the fog. */
+  var act = needsAction(m);
   return L.divIcon({
     className: 'pin-wrap',
     html: '<div class="pin stage-' + stage + (cls ? ' cls-' + cls : '') +
-            (urg ? ' urg-' + urg : '') + (m.stacked ? ' pin-stacked' : '') + '">' +
+            (urg ? ' urg-' + urg : '') + (m.stacked ? ' pin-stacked' : '') +
+            (act ? ' pin-action' : '') + '">' +
             '<span class="pin-halo"></span>' +
             (urg ? '<span class="pin-ring"></span>' : '') +
-            (stage === 0
+            (stage === 0 && !act
               ? '<span class="pin-lockdisc"></span><span class="pin-lock">🔒</span>'
               : '<span class="pin-core"></span>') +
             star +
-            (needsAction(m) ? '<span class="pin-flag" aria-hidden="true">▲</span>' : '') +
           '</div>',
     iconSize: [stage === 4 ? 30 : 24, stage === 4 ? 30 : 24],
     iconAnchor: [stage === 4 ? 15 : 12, stage === 4 ? 15 : 12]
@@ -888,11 +900,11 @@ function renderPins() {
     var stage = stageOf(m);
     var mk = L.marker([m.dlat, m.dlng], {
       icon: pinIcon(m, stage),
-      pane: stage === 0 ? 'lockedPins' : 'markerPane',
+      pane: stage === 0 && !needsAction(m) ? 'lockedPins' : 'markerPane',
       keyboard: true,
       title: m.name,
       riseOnHover: true,
-      zIndexOffset: stage * 100
+      zIndexOffset: needsAction(m) ? 600 : stage * 100
     });
     mk.on('click', function () { selectMission(m); });
     mk.addTo(map);
@@ -1365,6 +1377,7 @@ function saveContact(m, form) {
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
   form.classList.add('is-saving');
 
+  var stageBefore = stageOf(m);
   postUpdate({
     hospital_name: m.name, add_contact: true,
     contact_role: role, contact_name: name, contact_phone: fmtPhone(phone),
@@ -1381,8 +1394,10 @@ function saveContact(m, form) {
   }).then(function () {
     form.classList.remove('is-saving');
     state.contactsOpen = true;
-    toast('✓ ' + t('contactSaved'));
+    var unlocked = stageOf(m) !== stageBefore;
+    toast('✓ ' + t('contactSaved') + (unlocked ? ' · ' + t('stage2') + ' ' + stageName(stageOf(m)) : ''));
     selectMission(m);
+    if (unlocked) { refresh(); flashPin(m); }
   }).catch(function (e) {
     form.classList.remove('is-saving');
     btn.disabled = false;
@@ -1616,7 +1631,7 @@ function boot() {
   });
 
   loadProducts();
-  loadContacts();
+  loadContacts().then(function () { if (state.missions.length) refresh(); });
   loadHistory().then(function () { renderLeaderboard(); });
   var whReady = loadWarehouses();
   Promise.all([loadData(), fetch(CFG.REGIONS_URL).then(function (r) { return r.json(); })])
@@ -1893,8 +1908,12 @@ function fetchContacts(name) {
 
 function refreshContacts(m, force) {
   if (!force && state.contactsFresh[m.name]) return;
+  var before = stageOf(m);
   fetchContacts(m.name).then(function () {
-    if (state.selected === m.id) selectMission(m);
+    if (stageOf(m) !== before) refresh();
+    /* the lookup lands a second or two after the panel opens — by then the
+       agent may be typing in a form, and redrawing would throw that away */
+    if (state.selected === m.id && !$('#panel-body form')) selectMission(m);
   }).catch(function (e) {
     console.warn('[TM] contacts lookup failed, using the sheet copy:', e.message);
   });
@@ -1989,12 +2008,74 @@ function productPicker(selectedCsv) {
     '<div class="picker" data-name="shortage">' + body + '</div></div>';
 }
 
+/* A visit only counts from the hospital itself: the form checks the phone's
+   GPS against the pin before Save unlocks.
+
+   Not every pin deserves the same trust. Some sheet coordinates are a town
+   centre — rounded to a couple of decimals, or shared by several hospitals
+   — and an agent standing in the right car park can be kilometres from
+   those. They get the wider radius; everything else gets the tight one.
+
+   This is a check in the app, not in the script: it stops the honest
+   mis-tap and the casual shortcut, and the distance goes into the visit
+   log so it can be audited. */
+var VISIT_FIX_MAX_AGE_MS = 10 * 60 * 1000;
+
+function pinIsApprox(m) {
+  var dec = function (n) { var p = String(n).split('.')[1]; return p ? p.length : 0; };
+  if (Math.min(dec(m.lat), dec(m.lng)) <= 2) return true;
+  return state.missions.some(function (x) {
+    return x !== m && x.lat === m.lat && x.lng === m.lng;
+  });
+}
+
+function visitRadiusKm(m) {
+  return pinIsApprox(m) ? (CFG.VISIT_RADIUS_APPROX_KM || 15) : (CFG.VISIT_RADIUS_KM || 3);
+}
+
+function fmtKm(km) { return km < 10 ? km.toFixed(1) : String(Math.round(km)); }
+
+function checkVisitLocation(m) {
+  var msg = $('#qv-loc'), save = $('#qv-save'), again = $('#qv-recheck');
+  if (!msg) return;
+  var say = function (text, kind, hint) {
+    msg.className = 'qv-loc loc-' + kind;
+    msg.innerHTML = (kind === 'wait' ? '<span class="spin" aria-hidden="true"></span>' : '') +
+      esc(text) + (hint ? '<small>' + esc(hint) + '</small>' : '');
+    again.hidden = kind === 'wait' || kind === 'ok';
+    save.disabled = kind !== 'ok';
+  };
+  state.visitFix = null;
+  if (!navigator.geolocation) { say(t('gpsUnsupported'), 'err'); return; }
+  say(t('visitChecking'), 'wait');
+
+  navigator.geolocation.getCurrentPosition(function (pos) {
+    if (!$('#qv-loc') || state.selected !== m.id) return;      // the form was closed meanwhile
+    var acc = Math.round(pos.coords.accuracy || 0);
+    if (acc > GPS_MAX_ACCURACY_M) { say(t('gpsWeak').replace('{m}', acc), 'err'); return; }
+    var km = L.latLng(m.lat, m.lng).distanceTo([pos.coords.latitude, pos.coords.longitude]) / 1000;
+    var r = visitRadiusKm(m);
+    if (km > r) {
+      say(t('visitFar').replace('{km}', fmtKm(km)).replace('{r}', r), 'err', t('visitPinHint'));
+      return;
+    }
+    state.visitFix = { id: m.id, km: km, at: Date.now() };
+    say(t('visitNear').replace('{km}', fmtKm(km)), 'ok');
+  }, function (err) {
+    if (!$('#qv-loc')) return;
+    say(err && err.code === 1 ? t('visitNeedLoc') : t('gpsFailed'), 'err');
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+}
+
 function openQuickVisit(m) {
   if (!editEnabled()) { toast(t('editOff')); return; }
   $('#panel-body').innerHTML =
     '<form id="qv-form" class="edit">' +
       '<div class="edit-head"><h2>' + esc(m.name) + '</h2>' +
         '<p>' + esc(m.city) + ' · ' + esc(state.lang === 'ar' ? m.cluster : m.clusterEn) + '</p></div>' +
+      '<div class="qv-gate"><p class="qv-loc" id="qv-loc" role="status"></p>' +
+        '<button type="button" class="act qv-recheck" id="qv-recheck" hidden>↻ ' +
+          esc(t('checkAgain')) + '</button></div>' +
       '<div class="fld"><label class="fld-k" for="qv-note">' + esc(t('visitNote')) + ' *</label>' +
         '<textarea class="in" id="qv-note" rows="3" autocomplete="off"></textarea></div>' +
       '<p class="edit-err" id="qv-err" hidden role="alert"></p>' +
@@ -2005,9 +2086,10 @@ function openQuickVisit(m) {
     '</form>';
   var form = $('#qv-form');
   $('#qv-cancel').addEventListener('click', function () { selectMission(m); });
+  $('#qv-recheck').addEventListener('click', function () { checkVisitLocation(m); });
   form.addEventListener('submit', function (e) { e.preventDefault(); saveQuickVisit(m, form); });
   $('#panel').scrollTop = 0;
-  $('#qv-note').focus();
+  checkVisitLocation(m);
 }
 
 function saveQuickVisit(m, form) {
@@ -2019,6 +2101,15 @@ function saveQuickVisit(m, form) {
     $('#qv-note').focus();
     return;
   }
+  /* no fix, a fix for another hospital, or one gone stale — check again */
+  var fix = state.visitFix;
+  if (!fix || fix.id !== m.id || Date.now() - fix.at > VISIT_FIX_MAX_AGE_MS) {
+    checkVisitLocation(m);
+    return;
+  }
+  /* the distance rides along in the log entry, so a visit can be audited */
+  note += ' [GPS ' + fmtKm(fix.km) + ' km]';
+
   err.hidden = true;
   btn.disabled = true;
   btn.innerHTML = '<span class="spin" aria-hidden="true"></span>' + esc(t('saving'));
@@ -2034,11 +2125,12 @@ function saveQuickVisit(m, form) {
       m.visitLog = '[' + today + '] ' + note + (m.visitLog ? '\n' + m.visitLog : '');
       var moved = false;
       if (res.stage) {
-        var ns = parseStage(res.stage);
-        moved = ns !== m.stage;
-        m.stage = ns;
+        var shown = stageOf(m);
+        m.stage = parseStage(res.stage);
         m.stageLabel = res.stage;
+        moved = stageOf(m) !== shown;
       }
+      state.visitFix = null;
       form.classList.remove('is-saving');
       toast('✓ ' + t('visitSaved') + (res.stage ? ' · ' + t('stage2') + ' ' + res.stage : ''));
       selectMission(m);
@@ -2085,10 +2177,6 @@ function openEditForm(m) {
         '<input class="in" id="f-mgr" data-name="manager" type="text" value="' + esc(m.manager) + '"></div>' +
       '<div class="fld"><label class="fld-k" for="f-phone">' + esc(t('fPhone')) + '</label>' +
         '<input class="in" id="f-phone" data-name="phone" type="tel" inputmode="tel" value="' + esc(fmtPhone(m.phone)) + '"></div>' +
-      '<div class="fld"><label class="fld-k" for="f-date">' + esc(t('fLastVisit')) + '</label>' +
-        '<input class="in" id="f-date" data-name="lastVisit" type="date" value="' + esc(todayISO()) + '"></div>' +
-      '<div class="fld"><label class="fld-k" for="f-log">' + esc(t('fVisitLog')) + '</label>' +
-        '<textarea class="in" id="f-log" data-name="visitLog" rows="3"></textarea></div>' +
       '<div class="fld"><label class="fld-k" for="f-adopted">' + esc(t('fPushAdopted')) + '</label>' +
         '<div class="num-row"><input class="in num" id="f-adopted" data-name="adopted" type="number" min="0" ' +
           'inputmode="numeric" value="' + (m.adopted != null ? m.adopted : '') + '">' +
@@ -2209,12 +2297,15 @@ function collectEdit(form) {
   var picker = form.querySelector('.picker[data-name="shortage"]');
 
   /* Flat snake_case, exactly what the web app expects. Stage and Visit
-     Status are deliberately absent — the script derives those. */
+     Status are deliberately absent — the script derives those.
+
+     last_visit and visit_log are absent too, on purpose: the script turns
+     any hospital with a Last Visit Date into Visited, and this form used to
+     send today's date with every save — so correcting a phone number
+     logged a visit. A visit is recorded only by the Visited button. */
   var u = {
     cssd_manager: val('manager'),
     phone: val('phone'),
-    last_visit: val('lastVisit'),
-    visit_log: val('visitLog'),
     push_adopted: val('adopted'),
     action_required: val('action'),
     feedback: val('feedback'),
@@ -2260,10 +2351,9 @@ function saveEdit(m, form) {
       throw new Error((res && res.error) || 'the script rejected the update');
     }
 
-    /* reflect the visit locally so the panel is right straight away */
+    /* reflect the edit locally so the panel is right straight away */
     m.manager = fields.cssd_manager;
     m.phone = fields.phone;
-    m.lastVisit = fields.last_visit;
     m.adopted = num(fields.push_adopted);
     m.action = fields.action_required;
     m.feedback = fields.feedback;
@@ -2281,18 +2371,13 @@ function saveEdit(m, form) {
       m.incubator = fields.has_incubator;
       if (fields.incubator_serial != null) m.incubatorSerial = fields.incubator_serial;
     }
-    if (fields.visit_log) {
-      m.visitLog = '[' + fields.last_visit + '] ' + fields.visit_log +
-                   (m.visitLog ? '\n' + m.visitLog : '');
-    }
-
     /* the script decides the stage — take it back and let the pin move */
     var moved = false;
     if (res.stage) {
-      var ns = parseStage(res.stage);
-      moved = ns !== m.stage;
-      m.stage = ns;
+      var shown = stageOf(m);
+      m.stage = parseStage(res.stage);
       m.stageLabel = res.stage;
+      moved = stageOf(m) !== shown;
     }
 
     form.classList.remove('is-saving');

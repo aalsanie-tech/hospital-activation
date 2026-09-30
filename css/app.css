@@ -691,11 +691,6 @@ select.in{
   100%{transform:scale(1.65);opacity:0}
 }
 .urg-expired .pin-core{box-shadow:0 0 10px #ff4d4d,0 1px 3px #000a}
-.pin-flag{
-  position:absolute; bottom:-5px; inset-inline-end:-6px; font-size:10px; line-height:1;
-  color:#ff5555; pointer-events:none;
-  text-shadow:0 0 7px #ff2d2d,0 1px 2px #000,0 0 2px #000;
-}
 body.low-power .urg-expired .pin-ring{animation:none}
 @media (prefers-reduced-motion:reduce){.urg-expired .pin-ring{animation:none}}
 
@@ -1199,3 +1194,32 @@ body.low-power .urg-expired .pin-ring{animation:none}
   .me-pulse{animation:none;opacity:.3}
   .tm-locate.busy a{animation:none;opacity:.5}
 }
+
+
+/* ═══ ACTION REQUIRED — the hospital's own pin, in red ═══════════════ */
+/* !important on the custom properties: the Desert theme recolours each
+   stage with a more specific selector, and red has to win on every theme */
+.pin.pin-action{--c:#ff3b3b!important;--g:rgba(255,59,59,.85)!important}
+.pin.pin-action .pin-core{
+  display:block; width:11px; height:11px; opacity:1; border-color:#ffffffe6;
+  box-shadow:0 0 12px var(--g),0 1px 3px #000a;
+}
+.pin.pin-action .pin-halo{display:block;width:22px;height:22px;animation:ping 1.6s ease-out infinite}
+body.low-power .pin.pin-action .pin-halo{animation:none}
+@media (prefers-reduced-motion:reduce){.pin.pin-action .pin-halo{animation:none}}
+
+/* ═══ VISITED — location gate ═══════════════════════════════ */
+.qv-gate{
+  display:flex; align-items:flex-start; gap:10px; margin:0 0 12px; padding:10px 12px;
+  border-radius:12px; border:1px solid var(--line); background:#0a1420;
+}
+.qv-loc{flex:1;min-width:0;margin:0;font-size:12.5px;line-height:1.45}
+.qv-loc .spin{margin-inline-end:7px;vertical-align:-2px}
+.qv-loc small{display:block;margin-top:5px;font-size:11px;color:var(--ink-mute)}
+.qv-loc.loc-wait{color:var(--ink-dim)}
+.qv-recheck{flex:none;padding:7px 11px;font-size:12px;white-space:nowrap}
+#qv-save:disabled{opacity:.45;cursor:not-allowed}
+:root[data-preset="desert"] .qv-gate{background:#2a2114;border-color:#4a3c26}
+:root[data-preset="saudi"] .qv-gate{background:#f4f7fb;border-color:#cdd8e6}
+:root[data-preset="saudi"] .qv-loc.loc-err{color:#b3261e}
+:root[data-preset="saudi"] .qv-loc.loc-ok{color:#006C35}
