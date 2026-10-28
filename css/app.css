@@ -6,6 +6,7 @@
   --ink:#e8f2ff; --ink-dim:#8ba3bf; --ink-mute:#5b7492;
   --locked:#5b6b82; --contact:#38bdf8; --visited:#fbbf24;
   --partial:#86efac; --active:#22ff88; --gold:#ffd766;
+  --st1:#38bdf8; --st2:#fbbf24; --st4:#22ff88;      /* contacted, visited, activated */
   --hud-h:76px; --legend-h:104px; --wh-hole:#07101a;
   --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
   --font:'Tajawal',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -902,6 +903,7 @@ body.low-power .urg-expired .pin-ring{animation:none}
   --void:#2C2417; --void-2:#1d1810; --line:#4a3c26;
   --ink:#f7ecd9; --ink-dim:#d3c0a0; --ink-mute:#9c8a6c;
   --contact:#e8a33d; --gold:#ffd94a;
+  --st1:#c98b3a; --st2:#e8a33d; --st4:#ffd94a;      /* the Desert pins' own palette */
 }
 :root[data-preset="desert"] body::before{
   background:
@@ -1069,10 +1071,10 @@ body.low-power .urg-expired .pin-ring{animation:none}
 .lb-bar .seg{display:block;height:100%}
 /* panel palette: blue contacted, green visited (as asked) — note the map
    legend paints Visited amber */
-.lb-bar .c1{background:var(--contact)}
-.lb-bar .c2{background:#34d399}
-.lb-bar .c3{background:#86efac}
-.lb-bar .c4{background:var(--active)}
+/* the same three colours as the pins and the legend, on every theme */
+.lb-bar .c1{background:var(--st1)}
+.lb-bar .c2{background:var(--st2)}
+.lb-bar .c4{background:var(--st4)}
 .lb-meta{font-size:11px;color:var(--ink-mute);margin-bottom:8px}
 .lb-meta b{font-size:13px;color:var(--ink);font-family:var(--font-hud)}
 .lb-month,.lb-total{
@@ -1084,10 +1086,9 @@ body.low-power .urg-expired .pin-ring{animation:none}
   color:var(--ink-mute); font-family:var(--font-hud); min-width:62px;
 }
 .lb-month b,.lb-total b{font-weight:800;font-family:var(--font-hud);font-size:12px}
-.lb-month .c1,.lb-total .c1{color:var(--contact)}
-.lb-month .c2,.lb-total .c2{color:#34d399}
-.lb-month .c3,.lb-total .c3{color:#86efac}
-.lb-month .c4,.lb-total .c4{color:var(--active)}
+.lb-month .c1,.lb-total .c1{color:var(--st1)}
+.lb-month .c2,.lb-total .c2{color:var(--st2)}
+.lb-month .c4,.lb-total .c4{color:var(--st4)}
 .lb-of{color:var(--ink-mute);font-family:var(--font)}
 .lb-none{color:var(--ink-mute)}
 .lb-loading{color:var(--ink-mute);font-style:italic}
@@ -1285,3 +1286,14 @@ body.low-power .pin.pin-action .pin-halo{animation:none}
 .z-far .wh-mark{transform:scale(.88)}
 .celebrate span{max-width:min(370px,calc(100vw - 28px))}
 .celebrate-tap span{font-size:15.5px;padding:12px 18px}
+
+/* ═══ UPDATE FORM: Ultra switch and Action Required ════════════════════ */
+.ultra-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ultra-chip{font-size:14px;font-weight:800;padding:9px 20px;letter-spacing:.04em}
+.ultra-chip.on{border-color:var(--st4);background:#0d2019;color:var(--st4);box-shadow:0 0 14px #22ff8840}
+.ultra-hint{font-size:12px;color:var(--ink-mute)}
+.yn .tri-b[data-v="Y"].on{border-color:#ff5a5a;background:#2a1013;color:#ffb3b3;box-shadow:0 0 12px #ff3b3b33}
+.action-text{margin-top:8px;border-color:#ff5a5a66}
+.action-text:focus{border-color:#ff5a5a}
+:root[data-preset="saudi"] .ultra-chip.on{background:#e6f7ee;color:#006C35;border-color:#0f9b55}
+:root[data-preset="saudi"] .yn .tri-b[data-v="Y"].on{background:#fdecec;color:#b3261e}

@@ -3,8 +3,10 @@ window.TM_STAGES = [
   { id: 0, key: 'locked',    en: 'Locked',           ar: 'مغلق',           chip: 'Locked',    chipAr: 'مغلق',   color: '#5b6b82', glow: 'rgba(91,107,130,.35)' },
   { id: 1, key: 'contact',   en: 'Contact',          ar: 'تواصل',          chip: 'Contact',   chipAr: 'تواصل',  color: '#38bdf8', glow: 'rgba(56,189,248,.85)' },
   { id: 2, key: 'visited',   en: 'Visited',          ar: 'تمت الزيارة',     chip: 'Visited',   chipAr: 'زيارة',  color: '#fbbf24', glow: 'rgba(251,191,36,.85)' },
-  { id: 3, key: 'partial',   en: 'Partial adoption', ar: 'تبنٍ جزئي',       chip: 'Partial',   chipAr: 'جزئي',   color: '#86efac', glow: 'rgba(134,239,172,.9)' },
-  { id: 4, key: 'activated', en: 'Fully activated',  ar: 'مُفعّل بالكامل',   chip: 'Activated', chipAr: 'مُفعّل', color: '#22ff88', glow: 'rgba(34,255,136,1)' }
+  /* retired: activation is now yes/no on Ultra pouches. Kept so the stage
+     numbers still line up with the script's (4 = Activated). */
+  { id: 3, key: 'partial',   en: 'Partial adoption', ar: 'تبنٍ جزئي',       chip: 'Partial',   chipAr: 'جزئي',   color: '#86efac', glow: 'rgba(134,239,172,.9)', retired: true },
+  { id: 4, key: 'activated', en: 'Activated',        ar: 'مُفعّل',   chip: 'Activated', chipAr: 'مُفعّل', color: '#22ff88', glow: 'rgba(34,255,136,1)' }
 ];
 
 window.TM_I18N = {
@@ -36,6 +38,8 @@ window.TM_I18N = {
     fIncubator: 'Has Incubator', fSerial: 'Incubator Serial',
     fDosing: 'Dosing System', fShortage: 'Shortage Items',
     fAction: 'Action Required', fFeedback: 'Feedback — Missing Items',
+    fUltra: 'Using Ultra pouches', ultraOn: 'On — this account is Activated', ultraOff: 'Off — not activated yet',
+    yesWord: 'Yes', noWord: 'No', actionPh: 'What needs to be done?', actionNeedsText: 'Write what action is needed, or choose No',
     fNextStep: 'Next Step', outOf: 'out of', selected: 'selected',
     noChange: 'no change', yes: 'Y', no: 'N', cls: 'Class',
     actNone: 'None', actBroken: 'Broken Device', actTraining: 'Training Needed',
@@ -113,6 +117,8 @@ window.TM_I18N = {
     fIncubator: 'يوجد حاضنة', fSerial: 'الرقم التسلسلي للحاضنة',
     fDosing: 'نظام الجرعات', fShortage: 'الأصناف الناقصة',
     fAction: 'الإجراء المطلوب', fFeedback: 'ملاحظات — أصناف ناقصة',
+    fUltra: 'يستخدم أكياس Ultra', ultraOn: 'مفعّل — هذا الحساب مُفعّل', ultraOff: 'غير مفعّل بعد',
+    yesWord: 'نعم', noWord: 'لا', actionPh: 'ما الإجراء المطلوب؟', actionNeedsText: 'اكتب الإجراء المطلوب أو اختر لا',
     fNextStep: 'الخطوة التالية', outOf: 'من', selected: 'محدد',
     noChange: 'دون تغيير', yes: 'نعم', no: 'لا', cls: 'التصنيف',
     actNone: 'لا شيء', actBroken: 'جهاز معطل', actTraining: 'يحتاج تدريب',

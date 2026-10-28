@@ -53,11 +53,10 @@ window.TM_CONFIG = {
   WAREHOUSES_FALLBACK_URL: 'data/warehouses.json',
   SHOW_SUPPLY_DEFAULT: true,
 
-  ACTION_OPTIONS: ['None', 'Broken Device', 'Training Needed', 'Product Complaint', 'Urgent Follow-up'],
-
-  /* How many push items count as full adoption. Mirrors the Apps Script,
-     and is used only when the sheet's own "Products Target" cell is blank
-     (it is blank on every row today). */
+  /* Activation is yes/no on Ultra pouches. The script still reads the
+     Products Adopted cell and calls 12 (its push target) Activated, so the
+     Ultra switch writes 12 for yes and 0 for no. Keep this equal to the
+     script's target. */
   PUSH_TARGET: 12,
 
   /* The Visited button only works this close to the hospital's pin (km).
@@ -75,8 +74,10 @@ window.TM_CONFIG = {
   CONTACTS_CSV_URL: 'https://docs.google.com/spreadsheets/d/1HBRcW_MYKdNy-YOjAbpMvYtx7wthTbPTAPlhV4uCKE8/gviz/tq?tqx=out:csv&headers=1&sheet=Contacts',
   CONTACT_ROLES: ['CSSD Manager', 'CSSD Assistant', 'Planner', 'Purchasing', 'Warehouse', 'Other'],
 
-  /* Saudi Arabia plus a buffer — panning stops at the edge of the map */
-  MAX_BOUNDS: [[15.2, 33.0], [33.4, 56.8]],
+  /* Saudi Arabia plus room to pan its edges clear of the header and the
+     filter bars — most of all the south, which sits under the bars on a
+     phone. Panning stops here. */
+  MAX_BOUNDS: [[9.5, 31.5], [36.0, 58.5]],
 
   /* ── Look ──────────────────────────────────────────────────────────────
      Map preset (see js/themes.js): tactical | tactical-bright | tactical-sharp |

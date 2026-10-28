@@ -66,9 +66,14 @@ columns without breaking the map. Only `Hospital Name`, `Latitude` and
 |---|---|---|
 | `0-Locked` | Locked — under the fog | slate |
 | `1-Contact` | Contact | blue glow |
-| `2-Visited` | Visited | amber |
-| `3-Partial` | Partial adoption | light green |
-| `4-Activated` | Fully activated | vivid green + star |
+| `2-Visited` | Visited | gold |
+| `4-Activated` | Activated — uses Ultra pouches | vivid green + star |
+
+There is no Partial stage: a hospital is Activated when it uses Ultra
+pouches and Visited until then. A row the script still marks `3-Partial`
+(an old push count of 1–11) is shown as Visited. Blue, gold and green mean
+contacted, visited and activated everywhere — pins, legend and the Progress
+board (the Desert theme keeps its own warm palette for all three).
 
 Parsing is lenient: a leading digit wins (`0`, `2-Visited`, `4 – activated`),
 otherwise the word is matched. Anything unrecognised is treated as Locked.
@@ -170,9 +175,24 @@ older rows keep working (`aliases` in `normProduct`).
 served, and the picker only groups when `category` actually repeats, so a
 future change to the script degrades to a flat list instead of breaking.
 
-`PUSH_TARGET` in [`js/config.js`](js/config.js) mirrors the script's push
-target (12 — the same as the number of Push products) and is used only when
-the sheet's own `Products Target` cell is blank.
+### Ultra = Activated
+
+The Update form's push count is gone. In its place is one **Ultra** switch:
+does the account use Ultra pouches? Until the script has an Ultra column of
+its own, the answer travels in the cell it already reads — `push_adopted`
+is sent as the push target (`PUSH_TARGET`, 12) for yes, which the script
+turns into `4-Activated`, and `0` for no. It is sent only when the switch
+was changed, so saving a phone number can never flip activation. The panel
+shows "Using Ultra pouches: Yes/No", read as Products Adopted ≥ 12.
+
+**Action Required** is Yes/No. Yes opens a box for what needs doing — it
+must not be empty — and that text is what `action_required` holds; any
+text turns the pin red. No sends an empty value, which clears it.
+
+The form no longer has **Feedback — Missing Items** or **Next Step**, and
+never sends them, so whatever the sheet holds is left alone. Update is for
+the account's standing facts; what happened on a visit goes in the
+Visited note.
 
 ### Contacts
 

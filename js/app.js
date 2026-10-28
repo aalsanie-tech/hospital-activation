@@ -4,6 +4,10 @@
 'use strict';
 
 var CFG = window.TM_CONFIG, STAGES = window.TM_STAGES, I18N = window.TM_I18N;
+/* STAGES stays indexed by stage number (STAGES[4] is Activated) so the
+   script's numbering keeps working; SHOWN is what the UI lists. */
+var SHOWN = STAGES.filter(function (x) { return !x.retired; });
+var LADDER = SHOWN.map(function (x) { return x.id; }).filter(function (n) { return n > 0; });   // [1, 2, 4]
 var $ = function (s, r) { return (r || document).querySelector(s); };
 var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 
@@ -154,8 +158,11 @@ function parseStage(raw) {
   var r = String(raw || '').trim().toLowerCase();
   if (!r) return 0;
   var m = r.match(/^(\d)/);
-  if (m) return Math.max(0, Math.min(4, +m[1]));
-  for (var k in STAGE_WORDS) if (r.indexOf(k) > -1) return STAGE_WORDS[k];
+  /* There is no Partial stage any more: a hospital is Activated when it uses
+     Ultra pouches and Visited until then. A row the script still marks
+     3-Partial (an old push count of 1–11) is shown as Visited. */
+  if (m) { var n = Math.max(0, Math.min(4, +m[1])); return n === 3 ? 2 : n; }
+  for (var k in STAGE_WORDS) if (r.indexOf(k) > -1) return STAGE_WORDS[k] === 3 ? 2 : STAGE_WORDS[k];
   return 0;
 }
 function num(v) { var n = parseFloat(String(v == null ? '' : v).replace('%', '').trim()); return isNaN(n) ? null : n; }
@@ -499,7 +506,7 @@ function stageOf(m) {
   if (state.sim) {
     var h = 0, str = m.id + m.name;
     for (var i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) & 0x7fffffff;
-    return [0, 0, 1, 1, 2, 2, 3, 3, 4, 4][h % 10];   /* averages 2.0 → ~50% */
+    return [0, 0, 1, 1, 1, 2, 2, 2, 4, 4][h % 10];
   }
   return m.stage;
 }
@@ -540,7 +547,6 @@ function stats(list) {
 var BADGE_TIERS = [
   { key: 'bronze',  code: 'blue',   minStage: 1, name: 'bBronze',  metal: ['#ffd7ae', '#cd7f32', '#6d3a11'], rim: '#ffd9b5', glyph: 'phone' },
   { key: 'silver',  code: 'orange', minStage: 2, name: 'bSilver',  metal: ['#ffffff', '#b9c7d6', '#5c6c80'], rim: '#eaf2ff', glyph: 'flag'  },
-  { key: 'gold',    code: 'green',  minStage: 3, name: 'bGold',    metal: ['#fff5c9', '#f5c542', '#8d5f0c'], rim: '#fff6cc', glyph: 'half'  },
   { key: 'diamond', code: 'gold',   minStage: 4, name: 'bDiamond', metal: ['#f2fffb', '#7ef0d6', '#0e8a8a'], rim: '#d8fff5', glyph: 'crown' }
 ];
 
@@ -1180,7 +1186,7 @@ function renderHUD(st) {
 
 function renderLegend(st) {
   var el = $('#legend');
-  el.innerHTML = STAGES.map(function (s) {
+  el.innerHTML = SHOWN.map(function (s) {
     var on = state.stageFilter === s.id;
     var label = (state.lang === 'ar' ? s.chipAr : s.chip) || stageName(s.id);
     return '<button class="lg stage-' + s.id + (on ? ' on' : '') + '" data-stage="' + s.id + '" ' +
@@ -1226,7 +1232,7 @@ function renderLeaderboard() {
   var chosen = opts.filter(function (o) { return o.key === month; })[0] || opts[0];
   var monthTitle = chosen ? chosen.label + ' ' + chosen.year : month;
   var loading = state.monthLoading === month;
-  var label = ['locked', 'contacted', 'visited', 'partial', 'activated'];
+  var label = ['locked', 'contacted', 'visited', '', 'activated'];
   var medals = ['🥇', '🥈', '🥉'];
 
   var monthRow = '<div class="lb-months">' + opts.map(function (o) {
@@ -1243,19 +1249,19 @@ function renderLeaderboard() {
         '<span class="badge-icon">' + badgeSvg(tier, 20) + '</span><b>×' + n + '</b></button>' : '';
     }).join('');
 
-    var segs = [1, 2, 3, 4].map(function (st) {
+    var segs = LADDER.map(function (st) {
       var w = s.total ? (s.exact[st] / s.total) * 100 : 0;
       return w ? '<i class="seg c' + st + '" style="width:' + w.toFixed(2) + '%"></i>' : '';
     }).join('');
 
     var monthTxt = loading
       ? '<span class="lb-loading">' + esc(t('loadingLbl')) + '</span>'
-      : ([1, 2, 3, 4].filter(function (n) { return s.month[n]; })
+      : (LADDER.filter(function (n) { return s.month[n]; })
           .map(function (n) {
             return '<b class="c' + n + '">+' + s.month[n] + ' ' + esc(t(label[n])) + '</b>';
           }).join(' · ') || '<span class="lb-none">—</span>');
 
-    var totalTxt = [1, 2, 3, 4].filter(function (n) { return s.reached[n]; })
+    var totalTxt = LADDER.filter(function (n) { return s.reached[n]; })
       .map(function (n) {
         return '<b class="c' + n + '">' + s.reached[n] + '</b><span class="lb-of">/' + s.total + '</span> ' +
                esc(t(label[n]));
@@ -1606,10 +1612,6 @@ function selectMission(m) {
   state.selected = m.id;
   state.selectedSite = null;
   var stage = stageOf(m), s = STAGES[stage];
-  var target = m.target != null ? m.target : CFG.PUSH_TARGET;
-  var prod = (m.adopted != null && target != null)
-    ? m.adopted + ' / ' + target + (m.adoption != null ? ' (' + m.adoption + '%)' : '')
-    : (m.adopted != null ? String(m.adopted) : '');
 
   $('#panel-body').innerHTML =
     '<div class="p-head stage-' + stage + '">' +
@@ -1617,7 +1619,7 @@ function selectMission(m) {
       '<h2 class="p-name">' + esc(m.name) + '</h2>' +
       '<p class="p-loc">' + esc(m.city) + ' · ' + esc(state.lang === 'ar' ? m.cluster : m.clusterEn) +
         (m.remote ? ' · <span class="p-remote">' + t('remote') + '</span>' : '') + '</p>' +
-      '<div class="p-track">' + STAGES.map(function (x) {
+      '<div class="p-track">' + SHOWN.map(function (x) {
           return '<i class="tk stage-' + x.id + (x.id <= stage ? ' done' : '') + '"></i>';
         }).join('') + '</div>' +
     '</div>' +
@@ -1626,8 +1628,8 @@ function selectMission(m) {
       row(t('agent'), m.agent) +
       row(t('lastVisit'), m.lastVisit) +
       row(t('nextVisit'), m.nextVisit) +
-      row(t('products'), prod) +
-      row(t('nextStep'), m.nextStep) +
+      row(t('fUltra'), usesUltra(m) ? t('yesWord') : t('noWord')) +
+      (m.nextStep ? row(t('nextStep'), m.nextStep) : '') +
       (m.cls ? row(t('cls'), m.cls) : '') +
       (m.incubator ? row(t('fIncubator'), m.incubator + (m.incubatorSerial ? ' · ' + m.incubatorSerial : '')) : '') +
       (m.shortage ? row(t('fShortage'), m.shortage) : '') +
@@ -1924,7 +1926,7 @@ function frameTerritory(tries) {
 function installBadgeGuide() {
   var btn = document.createElement('button');
   btn.className = 'preview-toggle badge-toggle';
-  btn.innerHTML = '<span class="bt-ic">' + badgeSvg(BADGE_TIERS[3], 17) + '</span>' +
+  btn.innerHTML = '<span class="bt-ic">' + badgeSvg(BADGE_TIERS[BADGE_TIERS.length - 1], 17) + '</span>' +
                   esc(t('badgesBtn'));
   btn.addEventListener('click', openBadgeGuide);
   $('#drawer').appendChild(btn);
@@ -2134,6 +2136,13 @@ function contactsFor(m) {
   });
   return out;
 }
+
+/* Activation is one question now: does the account use Ultra pouches?
+   Until the script grows its own Ultra column, the answer travels in the
+   Products Adopted cell the script already reads: the full push target
+   (12) for yes, which the script turns into 4-Activated, and 0 for no. */
+function ultraTarget(m) { return m.target != null ? m.target : (CFG.PUSH_TARGET != null ? CFG.PUSH_TARGET : 12); }
+function usesUltra(m) { return m.adopted != null && m.adopted >= ultraTarget(m); }
 
 function editEnabled() { return !!(CFG.APPS_SCRIPT_URL || '').trim(); }
 
@@ -2351,17 +2360,9 @@ function saveQuickVisit(m, form) {
 
 function openEditForm(m) {
   if (!editEnabled()) { toast(t('editOff')); return; }
-  var total = m.target != null ? m.target : (CFG.PUSH_TARGET != null ? CFG.PUSH_TARGET : '');
-  var labels = { 'None': t('actNone'), 'Broken Device': t('actBroken'),
-                 'Training Needed': t('actTraining'), 'Product Complaint': t('actComplaint'),
-                 'Urgent Follow-up': t('actUrgent') };
-  var actions = (CFG.ACTION_OPTIONS || []).map(function (o) {
-    return '<option value="' + esc(o) + '"' + (m.action === o ? ' selected' : '') + '>' +
-           esc(labels[o] || o) + '</option>';
-  }).join('');
 
   $('#panel-body').innerHTML =
-    '<form id="edit-form" class="edit" novalidate data-orig="' + esc(m.name) + '">' +
+    '<form id="edit-form" class="edit" novalidate data-orig="' + esc(m.name) + '" data-ultra-target="' + ultraTarget(m) + '">' +
       '<div class="edit-head">' +
         '<h2>' + esc(m.name) + '</h2>' +
         '<p>' + esc(m.city) + ' · ' + esc(state.lang === 'ar' ? m.cluster : m.clusterEn) + '</p>' +
@@ -2378,22 +2379,23 @@ function openEditForm(m) {
         '<input class="in" id="f-mgr" data-name="manager" type="text" value="' + esc(m.manager) + '"></div>' +
       '<div class="fld"><label class="fld-k" for="f-phone">' + esc(t('fPhone')) + '</label>' +
         '<input class="in" id="f-phone" data-name="phone" type="tel" inputmode="tel" value="' + esc(fmtPhone(m.phone)) + '"></div>' +
-      '<div class="fld"><label class="fld-k" for="f-adopted">' + esc(t('fPushAdopted')) + '</label>' +
-        '<div class="num-row"><input class="in num" id="f-adopted" data-name="adopted" type="number" min="0" ' +
-          'inputmode="numeric" value="' + (m.adopted != null ? m.adopted : '') + '">' +
-          '<span class="num-of">' + esc(t('outOf')) + ' <b>' + (total === '' ? '—' : esc(total)) + '</b></span></div></div>' +
+      '<div class="fld"><label class="fld-k">' + esc(t('fUltra')) + '</label>' +
+        '<div class="ultra-row"><button type="button" class="chip ultra-chip' + (usesUltra(m) ? ' on' : '') +
+          '" id="f-ultra" aria-pressed="' + usesUltra(m) + '" data-was="' + (usesUltra(m) ? '1' : '0') + '">Ultra</button>' +
+          '<span class="ultra-hint" id="f-ultra-hint">' + esc(t(usesUltra(m) ? 'ultraOn' : 'ultraOff')) + '</span></div></div>' +
       triGroup('informed', t('fInformed'), m.informed) +
       triGroup('incubator', t('fIncubator'), m.incubator) +
       '<div class="fld" id="serial-fld"><label class="fld-k" for="f-serial">' + esc(t('fSerial')) + '</label>' +
         '<input class="in" id="f-serial" data-name="incubatorSerial" type="text" value="' + esc(m.incubatorSerial) + '"></div>' +
       triGroup('dosing', t('fDosing'), m.dosing) +
       productPicker(m.shortage) +
-      '<div class="fld"><label class="fld-k" for="f-action">' + esc(t('fAction')) + '</label>' +
-        '<select class="in" id="f-action" data-name="action"><option value=""></option>' + actions + '</select></div>' +
-      '<div class="fld"><label class="fld-k" for="f-feedback">' + esc(t('fFeedback')) + '</label>' +
-        '<input class="in" id="f-feedback" data-name="feedback" type="text" value="' + esc(m.feedback) + '"></div>' +
-      '<div class="fld"><label class="fld-k" for="f-next">' + esc(t('fNextStep')) + '</label>' +
-        '<input class="in" id="f-next" data-name="nextStep" type="text" value="' + esc(m.nextStep) + '"></div>' +
+      '<div class="fld" id="action-fld"><label class="fld-k">' + esc(t('fAction')) + '</label>' +
+        '<div class="tri yn" data-name="actionYN" data-was="' + (needsAction(m) ? 'Y' : 'N') + '">' +
+          '<button type="button" class="tri-b' + (needsAction(m) ? ' on' : '') + '" data-v="Y">' + esc(t('yesWord')) + '</button>' +
+          '<button type="button" class="tri-b' + (needsAction(m) ? '' : ' on') + '" data-v="N">' + esc(t('noWord')) + '</button>' +
+        '</div>' +
+        '<textarea class="in action-text" id="f-action-text" data-name="actionText" rows="2" dir="auto" placeholder="' +
+          esc(t('actionPh')) + '"' + (needsAction(m) ? '' : ' hidden') + '>' + esc(needsAction(m) ? m.action : '') + '</textarea></div>' +
       '<p class="edit-err" id="edit-err" hidden role="alert"></p>' +
       '<div class="edit-actions">' +
         '<button type="button" class="act" id="edit-cancel">' + esc(t('cancel')) + '</button>' +
@@ -2410,12 +2412,29 @@ function openEditForm(m) {
   };
   syncSerial();
 
+  var ultra = $('#f-ultra');
+  ultra.addEventListener('click', function () {
+    var on = !ultra.classList.contains('on');
+    ultra.classList.toggle('on', on);
+    ultra.setAttribute('aria-pressed', on);
+    $('#f-ultra-hint').textContent = t(on ? 'ultraOn' : 'ultraOff');
+  });
+
+  /* Yes opens the box for what needs doing; No closes and clears it */
+  var syncAction = function () {
+    var b = form.querySelector('.tri[data-name="actionYN"] .tri-b.on');
+    var yes = !!b && b.dataset.v === 'Y', box = $('#f-action-text');
+    box.hidden = !yes;
+    if (yes) box.focus();
+  };
+
   $$('.tri', form).forEach(function (grp) {
     $$('.tri-b', grp).forEach(function (b) {
       b.addEventListener('click', function () {
         $$('.tri-b', grp).forEach(function (x) { x.classList.remove('on'); });
         b.classList.add('on');
         if (grp.dataset.name === 'incubator') syncSerial();
+        if (grp.dataset.name === 'actionYN') syncAction();
       });
     });
   });
@@ -2504,13 +2523,12 @@ function collectEdit(form) {
      any hospital with a Last Visit Date into Visited, and this form used to
      send today's date with every save — so correcting a phone number
      logged a visit. A visit is recorded only by the Visited button. */
+  /* Feedback and Next Step are visit notes, not account facts, so the form
+     no longer has them — and never sends them, which leaves whatever the
+     sheet already holds untouched. */
   var u = {
     cssd_manager: val('manager'),
     phone: val('phone'),
-    push_adopted: val('adopted'),
-    action_required: val('action'),
-    feedback: val('feedback'),
-    next_step: val('nextStep'),
     shortage_items: picker
       ? $$('.chip.on', picker).map(function (c) { return c.dataset.p; }).join(', ')
       : val('shortage')
@@ -2526,6 +2544,17 @@ function collectEdit(form) {
   var gLat = val('gpsLat'), gLng = val('gpsLng');
   if (gLat && gLng) { u.latitude = gLat; u.longitude = gLng; }
 
+  /* Ultra and Action Required are sent only when changed, so saving a phone
+     number can never flip a hospital's activation */
+  var ul = form.querySelector('#f-ultra');
+  if (ul) {
+    var on = ul.classList.contains('on');
+    if (on !== (ul.dataset.was === '1')) u.push_adopted = on ? String(form.dataset.ultraTarget) : '0';
+  }
+  var yn = tri('actionYN');
+  if (yn === 'Y') u.action_required = val('actionText');
+  else if (yn === 'N' && form.querySelector('.tri[data-name="actionYN"]').dataset.was === 'Y') u.action_required = '';
+
   if (tri('informed')) u.informed = tri('informed');
   if (tri('dosing')) u.dosing_system = tri('dosing');
   if (tri('incubator')) {
@@ -2538,6 +2567,13 @@ function collectEdit(form) {
 function saveEdit(m, form) {
   var btn = $('#edit-save'), err = $('#edit-err');
   var fields = collectEdit(form);
+  if (fields.action_required !== undefined && form.querySelector('.tri[data-name="actionYN"] .tri-b.on[data-v="Y"]') &&
+      !fields.action_required) {
+    err.textContent = t('actionNeedsText');
+    err.hidden = false;
+    $('#f-action-text').focus();
+    return;
+  }
   err.hidden = true;
 
   btn.disabled = true;
@@ -2554,10 +2590,8 @@ function saveEdit(m, form) {
     /* reflect the edit locally so the panel is right straight away */
     m.manager = fields.cssd_manager;
     m.phone = fields.phone;
-    m.adopted = num(fields.push_adopted);
-    m.action = fields.action_required;
-    m.feedback = fields.feedback;
-    m.nextStep = fields.next_step;
+    if (fields.push_adopted !== undefined) m.adopted = num(fields.push_adopted);
+    if (fields.action_required !== undefined) m.action = fields.action_required;
     m.shortage = fields.shortage_items;
     if (fields.hospital_name_edit) m.name = fields.hospital_name_edit;   // it is the lookup key next time
     if (fields.latitude && fields.longitude) {
@@ -3168,11 +3202,11 @@ function selectClusterSite(c) {
   var contacts = state.siteContacts[c.name], open = state.siteContactsOpen;
   var en = c.def && c.def.en ? c.def.en : '';
 
-  var segs = [1, 2, 3, 4].map(function (n) {
+  var segs = LADDER.map(function (n) {
     var w = list.length ? (st.byStage[n] / list.length) * 100 : 0;
     return w ? '<i class="seg c' + n + '" style="width:' + w.toFixed(2) + '%"></i>' : '';
   }).join('');
-  var stages = STAGES.map(function (x) {
+  var stages = SHOWN.map(function (x) {
     return '<div class="row"><span class="row-k"><i class="cs-dot stage-' + x.id + '"></i>' +
       esc(stageName(x.id)) + '</span><span class="row-v">' + st.byStage[x.id] + '</span></div>';
   }).join('');
