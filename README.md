@@ -48,6 +48,15 @@ spellings now resolve, along with the English names. Add a new spelling to
 changes again. An unrecognised cluster logs a console warning and simply
 loses its province shading, rather than guessing.
 
+
+Since November 2026 the map also knows **Riyadh Cluster 1, 2 and 3**, the
+**Eastern Cluster** (plus Al-Ahsa and Hafr Al-Batin) and **Qassim**, and the
+Riyadh, Eastern and Qassim provinces are part of the territory. In the
+Cluster column use `الرياض 1` / `الرياض 2` / `الرياض 3`, `الشرقية` and
+`القصيم` (the full names `تجمع الرياض الصحي الثالث` etc. work too). A bare
+`الرياض` matches all three Riyadh clusters, so it is reported in the console
+and left unshaded rather than guessed. Spellings of the same cluster count,
+filter and earn badges as one (`clusterKey`).
 ### Expected CSV columns (in order)
 
 `Hospital Name, Cluster, City, Agent, Stage, CSSD Manager Name,

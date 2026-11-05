@@ -27,6 +27,13 @@ CLUSTER_DEFS = [
     dict(en='Hail Cluster',             short='Hail',       region='SA-06', aliases=['تجمع حائل الصحي', 'حائل']),
     dict(en='Jouf Cluster',             short='Jouf',       region='SA-12', aliases=['تجمع الجوف الصحي', 'الجوف']),
     dict(en='Northern Borders Cluster', short='N. Borders', region='SA-08', aliases=['تجمع الحدود الشمالية الصحي', 'الحدود الشمالية']),
+    dict(en='Riyadh Cluster 1',         short='Riyadh C1',  region='SA-01', aliases=['تجمع الرياض الصحي الأول', 'الرياض 1', 'الرياض الأول', 'الرياض الاول']),
+    dict(en='Riyadh Cluster 2',         short='Riyadh C2',  region='SA-01', aliases=['تجمع الرياض الصحي الثاني', 'الرياض 2', 'الرياض الثاني']),
+    dict(en='Riyadh Cluster 3',         short='Riyadh C3',  region='SA-01', aliases=['تجمع الرياض الصحي الثالث', 'الرياض 3', 'الرياض الثالث']),
+    dict(en='Eastern Cluster',          short='Eastern',    region='SA-04', aliases=['تجمع الشرقية الصحي الأول', 'تجمع الشرقية الصحي', 'الشرقية', 'الشرقية 1', 'المنطقة الشرقية', 'الدمام']),
+    dict(en='Al-Ahsa Cluster',          short='Al-Ahsa',    region='SA-04', aliases=['تجمع الأحساء الصحي', 'الأحساء', 'الاحساء']),
+    dict(en='Hafr Al-Batin Cluster',    short='Hafr Batin', region='SA-04', aliases=['تجمع حفر الباطن الصحي', 'حفر الباطن']),
+    dict(en='Qassim Cluster',           short='Qassim',     region='SA-05', aliases=['تجمع القصيم الصحي', 'القصيم']),
 ]
 
 _DIACRITICS = dict.fromkeys(range(0x064B, 0x0653), None)

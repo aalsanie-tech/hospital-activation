@@ -27,7 +27,19 @@ var CLUSTER_DEFS = [
   { en: 'Tabuk Cluster',            short: 'Tabuk',      region: 'SA-07', aliases: ['تجمع تبوك الصحي', 'تبوك', 'tabuk'] },
   { en: 'Hail Cluster',             short: 'Hail',       region: 'SA-06', aliases: ['تجمع حائل الصحي', 'حائل', 'hail'] },
   { en: 'Jouf Cluster',             short: 'Jouf',       region: 'SA-12', aliases: ['تجمع الجوف الصحي', 'الجوف', 'jouf', 'al jouf'] },
-  { en: 'Northern Borders Cluster', short: 'N. Borders', region: 'SA-08', aliases: ['تجمع الحدود الشمالية الصحي', 'الحدود الشمالية', 'northern borders'] }
+  { en: 'Northern Borders Cluster', short: 'N. Borders', region: 'SA-08', aliases: ['تجمع الحدود الشمالية الصحي', 'الحدود الشمالية', 'northern borders'] },
+  /* November 2026: Riyadh, the Eastern Province and Qassim join the map.
+     Riyadh's three clusters are told apart by their number or ordinal; a
+     bare "الرياض" matches all three and is reported rather than guessed.
+     Al-Ahsa and Hafr Al-Batin are the Eastern Province's other two
+     clusters, listed so their rows land in the right province if used. */
+  { en: 'Riyadh Cluster 1',         short: 'Riyadh C1',  region: 'SA-01', aliases: ['تجمع الرياض الصحي الأول', 'الرياض 1', 'الرياض الأول', 'الرياض الاول', 'riyadh 1', 'riyadh first'] },
+  { en: 'Riyadh Cluster 2',         short: 'Riyadh C2',  region: 'SA-01', aliases: ['تجمع الرياض الصحي الثاني', 'الرياض 2', 'الرياض الثاني', 'riyadh 2', 'riyadh second'] },
+  { en: 'Riyadh Cluster 3',         short: 'Riyadh C3',  region: 'SA-01', aliases: ['تجمع الرياض الصحي الثالث', 'الرياض 3', 'الرياض الثالث', 'riyadh 3', 'riyadh third'] },
+  { en: 'Eastern Cluster',          short: 'Eastern',    region: 'SA-04', aliases: ['تجمع الشرقية الصحي الأول', 'تجمع الشرقية الصحي', 'الشرقية', 'الشرقية 1', 'المنطقة الشرقية', 'الدمام', 'eastern', 'eastern 1', 'dammam'] },
+  { en: 'Al-Ahsa Cluster',          short: 'Al-Ahsa',    region: 'SA-04', aliases: ['تجمع الأحساء الصحي', 'الأحساء', 'الاحساء', 'al ahsa', 'al-ahsa', 'ahsa'] },
+  { en: 'Hafr Al-Batin Cluster',    short: 'Hafr Batin', region: 'SA-04', aliases: ['تجمع حفر الباطن الصحي', 'حفر الباطن', 'hafr al batin', 'hafar al batin'] },
+  { en: 'Qassim Cluster',           short: 'Qassim',     region: 'SA-05', aliases: ['تجمع القصيم الصحي', 'القصيم', 'qassim', 'al qassim'] }
 ];
 
 /* The sheet has already been re-keyed once (full names → short names), so
@@ -181,6 +193,9 @@ function normalizeRows(rows) {
       name: (r['Hospital Name'] || '').trim(),
       city: (r['City'] || '').trim(),
       cluster: cl, clusterEn: meta.en, clusterShort: meta.short, region: meta.region,
+      /* one key per real cluster: "الرياض 3" and "تجمع الرياض الصحي الثالث"
+         are the same cluster and must count, filter and badge as one */
+      clusterKey: meta.region ? 'c:' + meta.short : cl,
       stage: parseStage(r['Stage']),
       manager: (r['CSSD Manager Name'] || '').trim(),
       phone: (r['CSSD Manager Phone'] || '').trim(),
@@ -517,8 +532,9 @@ function stats(list) {
     var st = stageOf(m);
     s.sum += st;
     s.byStage[st]++;
-    var c = s.clusters[m.cluster] || (s.clusters[m.cluster] = {
-      name: m.cluster, en: m.clusterEn, short: m.clusterShort, region: m.region,
+    var ck = m.clusterKey || m.cluster;
+    var c = s.clusters[ck] || (s.clusters[ck] = {
+      key: ck, name: m.cluster, en: m.clusterEn, short: m.clusterShort, region: m.region,
       total: 0, sum: 0, byStage: [0, 0, 0, 0, 0], lat: 0, lng: 0
     });
     c.total++; c.sum += st; c.byStage[st]++; c.lat += m.lat; c.lng += m.lng;
@@ -687,8 +703,8 @@ function agentStats(list, month) {
     for (var i = 0; i <= st; i++) s.reached[i]++;
     /* fallback only: where a hospital visited this month stands now */
     if (state.monthEstimated && String(m.lastVisit || '').slice(0, 7) === mk) s.month[st]++;
-    var c = s.clusters[m.cluster] ||
-      (s.clusters[m.cluster] = { name: m.cluster, short: m.clusterShort || m.cluster, total: 0, min: 4 });
+    var c = s.clusters[m.clusterKey || m.cluster] ||
+      (s.clusters[m.clusterKey || m.cluster] = { name: m.cluster, short: m.clusterShort || m.cluster, total: 0, min: 4 });
     c.total++;
     if (st < c.min) c.min = st;
   });
@@ -1090,7 +1106,7 @@ function baseMissions(skip) {
 function visible() {
   return baseMissions().filter(function (m) {
     if (state.stageFilter !== null && stageOf(m) !== state.stageFilter) return false;
-    if (state.clusterFilter && m.cluster !== state.clusterFilter) return false;
+    if (state.clusterFilter && (m.clusterKey || m.cluster) !== state.clusterFilter) return false;
     return true;
   });
 }
@@ -1403,9 +1419,9 @@ function renderDrawer(st) {
     '<div class="ds"><b>' + Math.round(st.pct * 100) + '%</b><span>' + t('conquered') + '</span></div>';
 
   $('#cluster-list').innerHTML = arr.map(function (c) {
-    var pct = Math.round(c.pct * 100), on = state.clusterFilter === c.name;
+    var pct = Math.round(c.pct * 100), on = state.clusterFilter === c.key;
     return '<li><button class="cl' + (on ? ' on' : '') + (pct >= 100 ? ' cl-full' : '') +
-      '" data-cluster="' + esc(c.name) + '">' +
+      '" data-cluster="' + esc(c.key) + '">' +
       '<div class="cl-top"><span class="cl-name">' + esc(state.lang === 'ar' ? c.name : c.en) + '</span>' +
       '<span class="cl-pct">' + pct + '%</span></div>' +
       '<div class="cl-bar"><i style="width:' + pct + '%"></i></div>' +
@@ -1420,7 +1436,7 @@ function renderDrawer(st) {
       refresh();
       var c = st.clusters[name];
       if (state.clusterFilter && c) {
-        var pts = state.missions.filter(function (m) { return m.cluster === name; })
+        var pts = state.missions.filter(function (m) { return (m.clusterKey || m.cluster) === name; })
           .map(function (m) { return [m.dlat, m.dlng]; });
         if (pts.length) state.map.fitBounds(L.latLngBounds(pts).pad(0.35), { animate: true });
       }
@@ -3287,7 +3303,7 @@ function selectClusterSite(c) {
   if (loc) loc.addEventListener('click', function () { setClusterLocation(c); });
   var show = $('#cs-show');
   if (show) show.addEventListener('click', function () {
-    state.clusterFilter = list[0].cluster;
+    state.clusterFilter = list[0].clusterKey || list[0].cluster;
     closePanel();
     refresh();
     state.map.fitBounds(L.latLngBounds(list.map(function (m) { return [m.dlat, m.dlng]; })).pad(0.35),
