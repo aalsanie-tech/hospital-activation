@@ -1,4 +1,4 @@
-/* Territory Missions — configuration
+/* Hospital Activation — configuration
    Edit this file to change the access code, the live data feed, or map defaults. */
 window.TM_CONFIG = {
 

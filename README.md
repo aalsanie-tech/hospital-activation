@@ -1,4 +1,4 @@
-# Territory Missions
+# Hospital Activation
 
 An interactive fog-of-war map of **197 hospital activation missions** across the
 13 Saudi health clusters. Built mobile-first, deployed as a static site on

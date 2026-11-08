@@ -243,7 +243,7 @@ regions = {'type': 'FeatureCollection', 'features': feats}
 # ---- write ----------------------------------------------------------------
 payload = {
     'generated': datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-    'source': 'Google Sheet · Territory Missions — Hospital Activation (Missions tab)',
+    'source': 'Google Sheet · Hospital Activation (Missions tab)',
     'clusters': CLUSTER_DEFS,
     'regionNames': {k: {'en': v[0], 'ar': v[1]} for k, v in REGION_NAMES.items()},
     'missions': missions,

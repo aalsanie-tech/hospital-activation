@@ -1,4 +1,4 @@
-/* Territory Missions — main app
+/* Hospital Activation — main app
    Data flow:  live CSV (Google Sheet)  →  fallback to data/missions.json  */
 (function () {
 'use strict';

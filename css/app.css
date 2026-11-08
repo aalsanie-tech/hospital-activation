@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════
-   Territory Missions — mobile-first strategy-map styling
+   Hospital Activation — mobile-first strategy-map styling
    ═══════════════════════════════════════════════════════════════════ */
 :root{
   --void:#04070c; --void-2:#080e17; --panel:#0b1420ee; --line:#1b2a3d;
@@ -112,6 +112,7 @@ body::before{
   font-family:var(--font-hud); font-size:13px; font-weight:900; letter-spacing:.2em;
   margin:0; color:#dcecff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
+@media (max-width:420px){.hud-title h1{font-size:12px;letter-spacing:.13em}}
 .hud-sub{margin:2px 0 0;font-size:11px;color:var(--ink-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hud-sub b{color:var(--ink-dim);font-weight:700}
 .src{
