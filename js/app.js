@@ -689,47 +689,76 @@ function agentStats(list, month) {
   /* only this month can be estimated from Last Visit; older months without
      logged transitions are genuinely empty */
   state.monthEstimated = !useHistory && month === mk && !!state.historyOk;
-  var byAgent = {};
-  list.forEach(function (m) {
-    var a = m.agent || '—';
-    var s = byAgent[a] || (byAgent[a] = {
-      agent: a, total: 0, reached: [0, 0, 0, 0, 0], exact: [0, 0, 0, 0, 0],
-      month: [0, 0, 0, 0, 0], clusters: {}, score: 0
-    });
+
+  var blank = function (name, extra) {
+    var o = { agent: name, total: 0, reached: [0, 0, 0, 0, 0], exact: [0, 0, 0, 0, 0],
+              month: [0, 0, 0, 0, 0], visits: 0, clusters: {}, score: 0, role: teamRole(name) };
+    Object.keys(extra || {}).forEach(function (k) { o[k] = extra[k]; });
+    return o;
+  };
+  var tally = function (s, m) {
     s.total++;
     var st = stageOf(m);
     s.exact[st]++;
     s.score += st;
     for (var i = 0; i <= st; i++) s.reached[i]++;
     /* fallback only: where a hospital visited this month stands now */
-    if (state.monthEstimated && String(m.lastVisit || '').slice(0, 7) === mk) s.month[st]++;
+    if (state.monthEstimated && String(m.lastVisit || '').slice(0, 7) === mk && m.agent) s.month[st]++;
+  };
+
+  /* territory: owners from the Agent column; unassigned hospitals make no card */
+  var byAgent = {};
+  list.forEach(function (m) {
+    if (!m.agent) return;
+    var s = byAgent[m.agent] || (byAgent[m.agent] = blank(m.agent));
+    tally(s, m);
     var c = s.clusters[m.clusterKey || m.cluster] ||
       (s.clusters[m.clusterKey || m.cluster] = { name: m.cluster, short: m.clusterShort || m.cluster, total: 0, min: 4 });
     c.total++;
-    if (st < c.min) c.min = st;
+    if (stageOf(m) < c.min) c.min = stageOf(m);
   });
+
+  /* the shared pool: one card per person working it, showing the pool's
+     progress; their badges are whole clusters, whoever did the visit */
+  var pool = list.filter(function (m) { return !m.agent; });
+  poolPeople().forEach(function (name) {
+    var s = byAgent[name] = blank(name, { shared: true });
+    pool.forEach(function (m) { tally(s, m); });
+    var poolClusters = {};
+    pool.forEach(function (m) { poolClusters[m.clusterKey || m.cluster] = 1; });
+    state.missions.forEach(function (m) {
+      var k = m.clusterKey || m.cluster;
+      if (!poolClusters[k]) return;
+      var c = s.clusters[k] || (s.clusters[k] = { name: m.cluster, short: m.clusterShort || m.cluster, total: 0, min: 4 });
+      c.total++;
+      if (stageOf(m) < c.min) c.min = stageOf(m);
+    });
+  });
+
+  /* credit: a move or a visit counts for whoever made it */
+  var cardFor = function (who) {
+    if (!who) return null;
+    var hit = personFor(who, Object.keys(byAgent));
+    if (hit) return byAgent[hit];
+    var known = personFor(who, (CFG.TEAM || []).map(function (x) { return x.name; }));
+    var name = known || who;
+    return byAgent[name] || (byAgent[name] = blank(name, { guest: true }));
+  };
   if (useHistory) {
-    /* A move is credited to whoever made it. Territory — totals and badges —
-       stays with the owner, so someone who only ever works other people's
-       hospitals gets a card with this month's moves and nothing else. */
-    var cardFor = function (who) {
-      if (!who) return null;
-      if (byAgent[who]) return byAgent[who];
-      var want = shortAgent(who).toLowerCase(), hit = null;
-      Object.keys(byAgent).forEach(function (a) {
-        if (!hit && shortAgent(a).toLowerCase() === want) hit = byAgent[a];
-      });
-      return hit || (byAgent[who] = {
-        agent: who, total: 0, reached: [0, 0, 0, 0, 0], exact: [0, 0, 0, 0, 0],
-        month: [0, 0, 0, 0, 0], clusters: {}, score: 0, guest: true
-      });
-    };
     hist.forEach(function (h) {
       if (!h.to) return;
-      var s = cardFor(h.by) || byAgent[h.agent];
+      var s = cardFor(h.by) || (h.agent ? cardFor(h.agent) : null);
       if (s) s.month[h.to]++;                // one count per transition, not per hospital
     });
   }
+  /* visits from the log, which also sees repeat visits that move no stage */
+  state.missions.forEach(function (m) {
+    parseVisitLog(m.visitLog).forEach(function (en) {
+      if (!en.by || String(en.date).slice(0, 7) !== month) return;
+      var s = cardFor(en.by);
+      if (s) s.visits++;
+    });
+  });
 
   var out = Object.keys(byAgent).map(function (a) {
     var s = byAgent[a];
@@ -743,6 +772,9 @@ function agentStats(list, month) {
     });
     s.activePct = s.total ? Math.round((s.reached[1] / s.total) * 100) : 0;
     return s;
+  }).filter(function (s) {
+    /* someone with no territory shows up only once they have done something */
+    return !s.guest || s.visits || s.month.some(function (n) { return n; });
   });
   /* rank by the number the card actually shows, so the order reads true;
      depth of progress only breaks ties */
@@ -918,6 +950,7 @@ function initMap() {
     }
     renderWarehouses();
     renderClusterSites();
+    renderRegionLabels();
   });
   L.control.attribution({ position: 'bottomleft', prefix: false })
     .addAttribution('Leaflet · boundaries: geoBoundaries ADM1').addTo(map);
@@ -990,33 +1023,38 @@ function renderRegions(geo, st) {
 }
 
 /* Arabic region names, drawn for themes that ask for them */
+/* The Saudi theme names every cluster on the map — twenty of them now, and
+   Makkah, Riyadh and the Eastern Province hold several each, so a label
+   per province no longer says enough. Each label sits at the middle of its
+   cluster's hospitals; labels that would overlap are stepped apart, which
+   is recomputed per zoom because "overlap" is in pixels. */
 function renderRegionLabels() {
   if (state.labelLayer) { state.map.removeLayer(state.labelLayer); state.labelLayer = null; }
   var P = state.preset || {};
-  if (!P.regionLabels || !state.geo) return;
-  var names = (state.data && state.data.regionNames) || {};
-  var group = L.layerGroup([], { pane: 'labels' });
-  state.geo.features.forEach(function (f) {
-    var rings = ringsOf(f);
-    if (!rings.length) return;
-    var best = rings[0], bestLen = 0;
-    rings.forEach(function (r) { if (r.length > bestLen) { bestLen = r.length; best = r; } });
-    var minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-    best.forEach(function (c) {
-      if (c[0] < minLat) minLat = c[0];
-      if (c[0] > maxLat) maxLat = c[0];
-      if (c[1] < minLng) minLng = c[1];
-      if (c[1] > maxLng) maxLng = c[1];
-    });
-    var nameAr = (names[f.properties.iso] && names[f.properties.iso].ar) || f.properties.nameAr;
-    if (!nameAr) return;
-    L.marker([(minLat + maxLat) / 2, (minLng + maxLng) / 2], {
-      pane: 'labels', interactive: false,
-      icon: L.divIcon({ className: 'region-label-wrap', html: '<span class="region-label">' + esc(nameAr) + '</span>' })
-    }).addTo(group);
+  if (!P.regionLabels || !state.missions.length) return;
+  var map = state.map, z = map.getZoom(), groups = {};
+  state.missions.forEach(function (m) {
+    var k = m.clusterKey || m.cluster;
+    var g = groups[k] || (groups[k] = { name: m.cluster, lat: 0, lng: 0, n: 0 });
+    g.lat += m.lat; g.lng += m.lng; g.n++;
   });
-  group.addTo(state.map);
-  state.labelLayer = group;
+  var placed = [], layer = L.layerGroup([], { pane: 'labels' });
+  Object.keys(groups).map(function (k) { return groups[k]; })
+    .sort(function (a, b) { return b.n - a.n; })                  // bigger clusters keep their spot
+    .forEach(function (g) {
+      var P0 = map.project([g.lat / g.n, g.lng / g.n], z), P1 = P0;
+      for (var step = 0; step < 8; step++) {
+        var Q = L.point(P0.x, P0.y + (step % 2 ? 1 : -1) * Math.ceil(step / 2) * 16);
+        if (!placed.some(function (o) { return Math.abs(o.x - Q.x) < 64 && Math.abs(o.y - Q.y) < 15; })) { P1 = Q; break; }
+      }
+      placed.push(P1);
+      L.marker(map.unproject(P1, z), {
+        pane: 'labels', interactive: false,
+        icon: L.divIcon({ className: 'region-label-wrap', html: '<span class="region-label">' + esc(g.name) + '</span>' })
+      }).addTo(layer);
+    });
+  layer.addTo(map);
+  state.labelLayer = layer;
 }
 
 function landRings() {
@@ -1098,7 +1136,7 @@ function baseMissions(skip) {
   return state.missions.filter(function (m) {
     if (skip !== 'class' && state.classFilter &&
         String(m.cls || '').toUpperCase() !== state.classFilter) return false;
-    if (skip !== 'agent' && state.agentFilter && m.agent !== state.agentFilter) return false;
+    if (skip !== 'agent' && state.agentFilter && !agentMatches(m, state.agentFilter)) return false;
     return true;
   });
 }
@@ -1219,12 +1257,56 @@ function renderLegend(st) {
   });
 }
 
+/* ═══ the team ═══
+   Hospitals are owned through the Agent column. Some are owned by nobody on
+   purpose: Class B and C in Riyadh and Qassim form a shared pool worked by
+   the Technical Support people who own no hospitals of their own. Roles
+   come from CFG.TEAM (names and roles only — never codes), with the
+   signed-in person's own role from the login reply only for someone not on
+   the roster. Roles carry no permissions; they are labels. */
+var UNASSIGNED = '__none__';
+
+function teamRole(name) {
+  /* the roster first: a phone that signed in before the roles were renamed
+     still holds the old one ("manager") until its next sign-in */
+  var hit = (CFG.TEAM || []).filter(function (x) { return x.name === name; })[0];
+  if (hit) return hit.role;
+  return (state.user && state.user.name === name && state.user.role) || '';
+}
+
+function isSupport(name) { return /technical support/i.test(teamRole(name)); }
+
+/* Technical Support people with no hospitals of their own work the pool */
+function poolPeople() {
+  if (!state.missions.some(function (m) { return !m.agent; })) return [];
+  var owners = {};
+  state.missions.forEach(function (m) { if (m.agent) owners[m.agent] = 1; });
+  return (CFG.TEAM || []).filter(function (x) {
+    return /technical support/i.test(x.role) && !owners[x.name];
+  }).map(function (x) { return x.name; });
+}
+
+function agentMatches(m, who) {
+  if (!who) return true;
+  if (who === UNASSIGNED) return !m.agent;
+  if (poolPeople().indexOf(who) > -1) return !m.agent;
+  return m.agent === who;
+}
+
+/* a log stamp or history row may carry a short name ("Alshehri") */
+function personFor(name, names) {
+  if (!name) return null;
+  if (names.indexOf(name) > -1) return name;
+  var want = shortAgent(name).toLowerCase();
+  return names.filter(function (n) { return shortAgent(n).toLowerCase() === want; })[0] || null;
+}
+
 function agentList() {
   var seen = [];
   state.missions.forEach(function (m) {
     if (m.agent && seen.indexOf(m.agent) === -1) seen.push(m.agent);
   });
-  return seen.sort();
+  return seen.sort().concat(poolPeople());
 }
 
 function shortAgent(name) {
@@ -1275,7 +1357,8 @@ function renderLeaderboard() {
       : (LADDER.filter(function (n) { return s.month[n]; })
           .map(function (n) {
             return '<b class="c' + n + '">+' + s.month[n] + ' ' + esc(t(label[n])) + '</b>';
-          }).join(' · ') || '<span class="lb-none">—</span>');
+          }).concat(s.visits ? ['<b class="cv">' + s.visits + ' ' + esc(t(s.visits === 1 ? 'visitLogged' : 'visitsLogged')) + '</b>'] : [])
+          .join(' · ') || '<span class="lb-none">—</span>');
 
     var totalTxt = LADDER.filter(function (n) { return s.reached[n]; })
       .map(function (n) {
@@ -1294,14 +1377,16 @@ function renderLeaderboard() {
     return '<div class="lb-card' + (i === 0 ? ' lb-first' : '') + '">' +
       '<div class="lb-head">' +
         '<span class="lb-rank">' + (medals[i] || (i + 1)) + '</span>' +
-        '<span class="lb-name" dir="auto">' + esc(s.agent) + '</span>' +
+        '<span class="lb-who"><span class="lb-name" dir="auto">' + esc(s.agent) + '</span>' +
+          (s.role ? '<span class="lb-role">' + esc(s.role) + '</span>' : '') + '</span>' +
         '<span class="lb-badges">' + badges + '</span>' +
       '</div>' +
       (s.guest
         ? '<div class="lb-meta"><span class="lb-of">' + esc(t('noTerritory')) + '</span></div>'
         : '<div class="lb-bar">' + segs + '</div>' +
           '<div class="lb-meta"><b>' + s.activePct + '%</b> ' + esc(t('activeLbl')) +
-            ' <span class="lb-of">· ' + s.total + ' ' + esc(t('hospitalsLbl')) + '</span></div>') +
+            ' <span class="lb-of">· ' + (s.shared ? esc(t('sharedLbl')) + ' · ' : '') +
+            s.total + ' ' + esc(t('hospitalsLbl')) + '</span></div>') +
       '<div class="lb-month"><span class="lb-mlabel">' + esc(monthTitle) + '</span>' + monthTxt +
         (state.monthEstimated ? ' <em class="lb-est">' + esc(t('estTag')) + '</em>' : '') + '</div>' +
       (s.guest ? '' : '<div class="lb-total"><span class="lb-mlabel">' + esc(t('totalLbl')) + '</span>' + totalTxt + '</div>') +
@@ -1383,9 +1468,11 @@ function renderFilters() {
     chip('agent', '', t('all'), byAgent.length, !state.agentFilter);
   agentList().forEach(function (a) {
     agentRow += chip('agent', a, shortAgent(a),
-      count(byAgent, function (m) { return m.agent === a; }),
+      count(byAgent, function (m) { return agentMatches(m, a); }),
       state.agentFilter === a);
   });
+  var pooled = count(byAgent, function (m) { return !m.agent; });
+  if (pooled) agentRow += chip('agent', UNASSIGNED, t('unassigned'), pooled, state.agentFilter === UNASSIGNED);
 
   var classRow = '<span class="fgroup-k">' + esc(t('klass')) + '</span>' +
     chip('class', '', t('all'), byClass.length, !state.classFilter);
@@ -1641,7 +1728,7 @@ function selectMission(m) {
     '</div>' +
     contactsHtml(m) +
     '<div class="p-rows">' +
-      row(t('agent'), m.agent) +
+      row(t('agent'), m.agent || t('unassigned')) +
       row(t('lastVisit'), m.lastVisit) +
       row(t('nextVisit'), m.nextVisit) +
       row(t('fUltra'), usesUltra(m) ? t('yesWord') : t('noWord')) +
@@ -1850,6 +1937,7 @@ function boot() {
       if (!applyDeepLink()) frameTerritory();
       spreadPins();
       renderPins();
+      renderRegionLabels();
       installBadgeGuide();
       /* ?badges=1 — a link a manager can send that opens the badge list */
       if (new URLSearchParams(location.search).get('badges') === '1') openBadgeGuide();
@@ -2246,6 +2334,8 @@ function productPicker(selectedCsv) {
 var VISIT_FIX_MAX_AGE_MS = 10 * 60 * 1000;
 
 function pinIsApprox(m) {
+  /* the sheet marks rough coordinates in Notes ("موقع تقريبي …") */
+  if (/تقريبي|approx/i.test(m.notes || '')) return true;
   var dec = function (n) { var p = String(n).split('.')[1]; return p ? p.length : 0; };
   if (Math.min(dec(m.lat), dec(m.lng)) <= 2) return true;
   return state.missions.some(function (x) {

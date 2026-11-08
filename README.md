@@ -269,6 +269,31 @@ Visit-log entries arrive as `[2026-09-30 · Alshehri] note`; the name is
 shown as a chip beside the note, and lines without a stamp are treated as
 the rest of the note above them.
 
+
+**The team and the shared pool (November 2026).** `TEAM` in `js/config.js`
+lists everyone's name and role — Sales, Technical Support or Manager. Roles
+are labels shown under each name on the Progress board; they grant nothing.
+Hospitals with an empty Agent cell are shown as "غير معيّن" and make no
+card of their own. They form a shared pool worked by the Technical Support
+people who own no hospitals (today Alharith Alamir and Nasir Alshagathra):
+each gets a card showing the pool's progress, marked "shared", the Agent
+filter shows them the pool, and a "غير معيّن" chip filters to it too.
+
+Credit follows the work: Stage History `updated_by` and the name stamped on
+each Visit Log entry count for whoever did it, so pool workers and the
+manager are credited even though the Agent column never names them. The
+month row adds "N visits logged", which also catches repeat visits that move
+no stage. Someone with no territory appears once they have done something.
+
+Badges skip unassigned hospitals when checking an owner's cluster. For pool
+workers a cluster that contains pool hospitals earns its badge when every
+hospital in it — owned or pooled — reaches the stage, whoever visited.
+
+In the Saudi theme the map names each of the 20 clusters at the middle of
+its hospitals, stepped apart where labels would overlap.
+
+Rows whose Notes say the location is approximate ("موقع تقريبي …") get the
+wider Visited radius until someone sets the real location with GPS.
 ### Themes
 
 **Mission** (dark blue, default), **Desert** (warm sand, earth and gold —

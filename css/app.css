@@ -1297,3 +1297,8 @@ body.low-power .pin.pin-action .pin-halo{animation:none}
 .action-text:focus{border-color:#ff5a5a}
 :root[data-preset="saudi"] .ultra-chip.on{background:#e6f7ee;color:#006C35;border-color:#0f9b55}
 :root[data-preset="saudi"] .yn .tri-b[data-v="Y"].on{background:#fdecec;color:#b3261e}
+
+/* ═══ PROGRESS: role under the name, visits logged ═════════════════════ */
+.lb-who{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.lb-role{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-mute);font-weight:600}
+.lb-month .cv{color:var(--ink)}

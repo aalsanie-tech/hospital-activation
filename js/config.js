@@ -65,6 +65,23 @@ window.TM_CONFIG = {
   VISIT_RADIUS_KM: 3,
   VISIT_RADIUS_APPROX_KM: 15,
 
+  /* The team: names and roles only (never codes). Roles are labels shown on
+     the Progress board, not permissions. Technical Support people who own
+     no hospitals work the shared pool — the rows whose Agent cell is empty.
+     Add a line here when someone joins; for anyone not listed, their own
+     role comes from the login reply. */
+  TEAM: [
+    { name: 'Munther Altamimi',  role: 'Manager' },
+    { name: 'Abdullah Alsanie',  role: 'Sales' },
+    { name: 'Mahmoud Abdin',     role: 'Sales' },
+    { name: 'Bandar Alasmari',   role: 'Sales' },
+    { name: 'Abdullah Alshehri', role: 'Technical Support' },
+    { name: 'Abdullah Hamthi',   role: 'Technical Support' },
+    { name: 'Alharith Alamir',   role: 'Technical Support' },
+    { name: 'Nasir Alshagathra', role: 'Technical Support' },
+    { name: 'Manar Mushikies',   role: 'Technical Support' }
+  ],
+
   /* Health-cluster offices (?action=clusters) and who works there */
   CLUSTERS_FALLBACK_URL: 'data/clusters.json',
   CLUSTER_ROLES: ['Purchasing', 'Planning', 'أمين العهدة', 'CSSD Coordinator', 'Supply Chain', 'Other'],
